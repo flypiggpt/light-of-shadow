@@ -20,6 +20,7 @@ Thumbs.db
 # --- Java / Maven (backend) ---
 target/
 *.jar
+!**/gradle/wrapper/gradle-wrapper.jar
 *.war
 .m2/
 *.pom.xml.bak
