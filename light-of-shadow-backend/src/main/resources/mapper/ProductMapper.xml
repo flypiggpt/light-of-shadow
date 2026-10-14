@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.yan.lightofshadowbackend.shop.mapper.ProductMapper">
+
+  <resultMap id="ProductResult" type="org.yan.lightofshadowbackend.shop.entity.ProductEntity">
+    <id property="id" column="id" />
+    <result property="name" column="name" />
+    <result property="description" column="description" />
+    <result property="priceCent" column="price_cent" />
+    <result property="stock" column="stock" />
+    <result property="coverUrl" column="cover_url" />
+    <result property="merchantId" column="merchant_id" />
+    <result property="createdAt" column="created_at" />
+  </resultMap>
+
+  <sql id="ProductColumns">
+    id, name, description, price_cent, stock, cover_url, merchant_id, created_at
+  </sql>
+
+  <insert id="insert" parameterType="org.yan.lightofshadowbackend.shop.entity.ProductEntity">
+    INSERT INTO product (id, name, description, price_cent, stock, cover_url, merchant_id)
+    VALUES (#{id}, #{name}, #{description}, #{priceCent}, #{stock}, #{coverUrl}, #{merchantId})
+  </insert>
+
+  <update id="decreaseStockIfEnough">
+    UPDATE product
+    SET stock = stock - #{quantity}
+    WHERE id = #{id}
+      AND stock &gt;= #{quantity}
+  </update>
+
+  <select id="selectById" resultMap="ProductResult" parameterType="string">
+    SELECT <include refid="ProductColumns" />
+    FROM product
+    WHERE id = #{id}
+  </select>
+
+  <select id="selectByIdAndMerchantId" resultMap="ProductResult">
+    SELECT <include refid="ProductColumns" />
+    FROM product
+    WHERE id = #{id} AND merchant_id = #{merchantId}
+  </select>
+
+  <select id="selectPage" resultMap="ProductResult">
+    SELECT <include refid="ProductColumns" />
+    FROM product
+    <where>
+      <if test="keyword != null and keyword != ''">
+        (name LIKE CONCAT('%', #{keyword}, '%') OR description LIKE CONCAT('%', #{keyword}, '%'))
+      </if>
+    </where>
+    ORDER BY created_at DESC
+    LIMIT #{offset}, #{limit}
+  </select>
+
+  <select id="count" resultType="long">
+    SELECT COUNT(1)
+    FROM product
+    <where>
+      <if test="keyword != null and keyword != ''">
+        (name LIKE CONCAT('%', #{keyword}, '%') OR description LIKE CONCAT('%', #{keyword}, '%'))
+      </if>
+    </where>
+  </select>
+
+  <select id="selectPageByMerchantId" resultMap="ProductResult">
+    SELECT <include refid="ProductColumns" />
+    FROM product
+    <where>
+      merchant_id = #{merchantId}
+      <if test="keyword != null and keyword != ''">
+        AND (name LIKE CONCAT('%', #{keyword}, '%') OR description LIKE CONCAT('%', #{keyword}, '%'))
+      </if>
+    </where>
+    ORDER BY created_at DESC
+    LIMIT #{offset}, #{limit}
+  </select>
+
+  <select id="countByMerchantId" resultType="long">
+    SELECT COUNT(1)
+    FROM product
+    <where>
+      merchant_id = #{merchantId}
+      <if test="keyword != null and keyword != ''">
+        AND (name LIKE CONCAT('%', #{keyword}, '%') OR description LIKE CONCAT('%', #{keyword}, '%'))
+      </if>
+    </where>
+  </select>
+
+  <update id="updateByIdAndMerchantId" parameterType="org.yan.lightofshadowbackend.shop.entity.ProductEntity">
+    UPDATE product
+    <set>
+      <if test="name != null">name = #{name},</if>
+      <if test="description != null">description = #{description},</if>
+      <if test="priceCent != null">price_cent = #{priceCent},</if>
+      <if test="stock != null">stock = #{stock},</if>
+      <if test="coverUrl != null">cover_url = #{coverUrl},</if>
+    </set>
+    WHERE id = #{id} AND merchant_id = #{merchantId}
+  </update>
+
+  <delete id="deleteByIdAndMerchantId">
+    DELETE FROM product
+    WHERE id = #{id} AND merchant_id = #{merchantId}
+  </delete>
+
+</mapper>
+

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.yan.lightofshadowbackend.shop.mapper.ShopOrderMapper">
+
+  <resultMap id="OrderResult" type="org.yan.lightofshadowbackend.shop.entity.ShopOrderEntity">
+    <id property="id" column="id" />
+    <result property="orderNo" column="order_no" />
+    <result property="userId" column="user_id" />
+    <result property="addressId" column="address_id" />
+    <result property="remark" column="remark" />
+    <result property="status" column="status" javaType="org.yan.lightofshadowbackend.shop.entity.OrderStatus" />
+    <result property="totalCent" column="total_cent" />
+    <result property="createdAt" column="created_at" />
+    <result property="updatedAt" column="updated_at" />
+  </resultMap>
+
+  <insert id="insert" parameterType="org.yan.lightofshadowbackend.shop.entity.ShopOrderEntity">
+    INSERT INTO shop_order (id, order_no, user_id, address_id, remark, status, total_cent)
+    VALUES (#{id}, #{orderNo}, #{userId}, #{addressId}, #{remark}, #{status}, #{totalCent})
+  </insert>
+
+  <select id="selectById" resultMap="OrderResult">
+    SELECT id, order_no, user_id, address_id, remark, status, total_cent, created_at, updated_at
+    FROM shop_order
+    WHERE id = #{id}
+  </select>
+
+  <select id="selectPageByUserId" resultMap="OrderResult">
+    SELECT id, order_no, user_id, address_id, remark, status, total_cent, created_at, updated_at
+    FROM shop_order
+    WHERE user_id = #{userId}
+    <if test="status != null and status != ''">
+      AND status = #{status}
+    </if>
+    ORDER BY created_at DESC
+    LIMIT #{offset}, #{limit}
+  </select>
+
+  <select id="countByUserId" resultType="long">
+    SELECT COUNT(1)
+    FROM shop_order
+    WHERE user_id = #{userId}
+    <if test="status != null and status != ''">
+      AND status = #{status}
+    </if>
+  </select>
+
+</mapper>
+

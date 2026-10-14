@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.yan.lightofshadowbackend.shop.mapper.CartItemMapper">
+
+  <resultMap id="CartItemResult" type="org.yan.lightofshadowbackend.shop.entity.CartItemEntity">
+    <id property="id" column="id" />
+    <result property="userId" column="user_id" />
+    <result property="productId" column="product_id" />
+    <result property="quantity" column="quantity" />
+    <result property="createdAt" column="created_at" />
+    <result property="updatedAt" column="updated_at" />
+  </resultMap>
+
+  <select id="selectByUserId" resultMap="CartItemResult">
+    SELECT id, user_id, product_id, quantity, created_at, updated_at
+    FROM cart_item
+    WHERE user_id = #{userId}
+    ORDER BY updated_at DESC, id DESC
+  </select>
+
+  <select id="selectById" resultMap="CartItemResult">
+    SELECT id, user_id, product_id, quantity, created_at, updated_at
+    FROM cart_item
+    WHERE id = #{id}
+  </select>
+
+  <select id="selectByIdAndUserId" resultMap="CartItemResult">
+    SELECT id, user_id, product_id, quantity, created_at, updated_at
+    FROM cart_item
+    WHERE id = #{id} AND user_id = #{userId}
+  </select>
+
+  <select id="selectByUserIdAndProductId" resultMap="CartItemResult">
+    SELECT id, user_id, product_id, quantity, created_at, updated_at
+    FROM cart_item
+    WHERE user_id = #{userId} AND product_id = #{productId}
+  </select>
+
+  <insert id="insert" parameterType="org.yan.lightofshadowbackend.shop.entity.CartItemEntity" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO cart_item (user_id, product_id, quantity)
+    VALUES (#{userId}, #{productId}, #{quantity})
+  </insert>
+
+  <update id="updateQuantityByIdAndUserId">
+    UPDATE cart_item
+    SET quantity = #{quantity}
+    WHERE id = #{id} AND user_id = #{userId}
+  </update>
+
+  <delete id="deleteByIdAndUserId">
+    DELETE FROM cart_item
+    WHERE id = #{id} AND user_id = #{userId}
+  </delete>
+
+  <delete id="deleteByUserId">
+    DELETE FROM cart_item
+    WHERE user_id = #{userId}
+  </delete>
+
+</mapper>
+

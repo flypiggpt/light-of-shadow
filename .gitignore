@@ -1,0 +1,57 @@
+# --- OS / editor ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+*.iws
+*.swp
+*.swo
+.classpath
+.project
+.settings/
+*.sublime-workspace
+
+# --- Java / Maven (backend) ---
+target/
+*.jar
+*.war
+.m2/
+*.pom.xml.bak
+nohup.out
+logs/
+*.out
+
+# --- Gradle / Android (client) ---
+.gradle/
+.kotlin/
+build/
+local.properties
+captures/
+externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# --- Secrets (NEVER commit) ---
+src/main/resources/application.yaml
+src/main/resources/application-*.yaml
+!src/main/resources/application-example.yaml
+src/test/resources/application-*.yaml
+.env
+.env.local
+.env.*.local
+*.properties.local
+
+# --- Logs ---
+*.log
+
+# --- MiMoCode local ---
+.mimocode/

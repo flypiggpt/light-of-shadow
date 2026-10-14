@@ -1,0 +1,34 @@
+# IDE metadata
+.idea/
+**/.idea/
+*.iml
+
+# Java / Maven
+target/
+**/target/
+
+# Gradle / Android
+.gradle/
+**/.gradle/
+.kotlin/
+**/.kotlin/
+build/
+**/build/
+local.properties
+captures/
+externalNativeBuild/
+**/externalNativeBuild/
+.cxx/
+**/.cxx/
+
+# Common generated files
+.DS_Store
+*.log
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# Editor and tool caches
+.vscode/
+.cache/

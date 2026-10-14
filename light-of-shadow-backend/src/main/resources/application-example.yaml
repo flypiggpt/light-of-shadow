@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: light-of-shadow-backend
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/light_of_shadow?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:your_password_here}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+  mapper-locations: classpath:/mapper/*.xml
+  type-aliases-package: org.yan.lightofshadowbackend.entity
+
+server:
+  port: 8080
+  address: 0.0.0.0
+
+app:
+  auth:
+    jwt:
+      issuer: light-of-shadow-backend
+      secret: ${JWT_SECRET:change-me-to-a-long-random-secret-for-production-please}
+    access-token-ttl: 2h
+    refresh-token-ttl: 30d
+  storage:
+    local:
+      base-dir: uploads
+      base-url: /media
+      max-file-size-bytes: 5242880
+
+deepseek:
+  api-key: ${DEEPSEEK_API_KEY:}
+  model: ${DEEPSEEK_MODEL:deepseek-chat}
+  base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+
+

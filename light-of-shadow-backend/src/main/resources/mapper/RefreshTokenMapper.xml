@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.yan.lightofshadowbackend.auth.mapper.RefreshTokenMapper">
+
+    <resultMap id="RefreshTokenResultMap" type="org.yan.lightofshadowbackend.entity.RefreshTokenEntity">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="token_hash" property="tokenHash"/>
+        <result column="expires_at" property="expiresAt"/>
+        <result column="revoked" property="revoked"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="selectActiveByTokenHash" resultMap="RefreshTokenResultMap">
+        SELECT id, user_id, token_hash, expires_at, revoked, created_at, updated_at
+        FROM sys_refresh_token
+        WHERE token_hash = #{tokenHash}
+          AND revoked = 0
+          AND expires_at > #{now}
+        LIMIT 1
+    </select>
+
+    <insert id="insert" parameterType="org.yan.lightofshadowbackend.entity.RefreshTokenEntity"
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO sys_refresh_token (user_id, token_hash, expires_at, revoked, created_at, updated_at)
+        VALUES (#{userId}, #{tokenHash}, #{expiresAt}, #{revoked}, #{createdAt}, #{updatedAt})
+    </insert>
+
+</mapper>
+
