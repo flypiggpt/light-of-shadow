@@ -17,24 +17,12 @@ light-of-shadow/                 # monorepo 根（唯一 git 仓库）
 
 ## Git 使用规范
 
-1. **分支开发，不直接在 main 上提交**：`main` 只保留可运行、已测过的版本。
-   - 新功能 / 修复先建分支：`git checkout -b feature/商城搜索`（分支名用简短中文或英文，表明要做什么）。
-   - 在分支上完成开发并自测通过后，再合并回 `main`。
-2. **提交前先 `git status` 确认改动的文件**，一次提交只做一件事：功能、文档、配置分开提交。
-3. **提交信息用中文**，一句话说明「做了什么 / 为什么」。示例：
-   - `修复登录 401 后未清除 token 的问题`
-   - `商城商品列表增加关键词搜索`
-4. **合并流程**：
-   ```
-   git checkout main
-   git pull
-   git merge feature/商城搜索
-   git push
-   git branch -d feature/商城搜索
-   ```
-   合并时若有冲突，手动解决后再 `git commit`。
-5. **不提交敏感文件**：`application.yaml`、`local.properties`、密钥、`.env` 已在 `.gitignore`，提交前检查不要 `git add -A` 误加。
-6. 跨前后端的接口改动，文档（`docs/api/`）与代码放在同一分支一起改。
+**完整指南见 [docs/git.md](docs/git.md)**（双人开发：分支、PR、冲突处理、monorepo 约定）。核心几条：
+
+1. **不直接在 `main` 上提交**，一律走 `feature/` `fix/` 分支 + Pull Request。
+2. **提交信息用中文**，一句话说明「做了什么 / 为什么」；一次提交只做一件事。
+3. **不要 `git add -A`**，`git status` 后按文件 add；不提交 `application.yaml`、`local.properties`、密钥。
+4. 跨前后端的接口改动，**`docs/api/` + 后端 + 客户端在同一 PR 一起改**。
 
 ## 使用方式
 

@@ -27,6 +27,12 @@
 | [db/mysql_add_user_role.sql](db/mysql_add_user_role.sql) | 用户角色字段 |
 | [db/mysql_shop_tables.sql](db/mysql_shop_tables.sql) | 商城相关表 |
 
+## 协作
+
+| 文档 | 说明 |
+|---|---|
+| [git.md](git.md) | Git 使用指南（双人开发）：分支、PR、冲突、monorepo 约定 |
+
 ## 约定
 
 - 后端接口变更 → 先改本目录文档，再改代码。
