@@ -14,6 +14,7 @@ light-of-shadow/                 # monorepo 根（唯一 git 仓库）
 - 前后端同仓管理，接口变更与文档更新放在同一次提交里。
 - 改后端进 `light-of-shadow-backend/`，改客户端进 `light-of-shadow-client/`。
 - API 契约见 `docs/api/`，UI 规范见 `docs/style.md`。
+- 贡献方式见 [CONTRIBUTING.md](CONTRIBUTING.md)，安全漏洞请走 [SECURITY.md](SECURITY.md)，协议为 [Apache 2.0](LICENSE)。
 
 ## Git 使用规范
 
