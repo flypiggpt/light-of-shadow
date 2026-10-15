@@ -1,62 +1,71 @@
-# 音影寻光 (Light of Shadow)
+# Light of Shadow (音影寻光)
 
-面向视障人群的辅助应用：本地视觉识别障碍物 + 语音报警，配套商城与 AI 导购。
+An assistive app for people with visual impairments: on-device obstacle detection with voice alerts, plus a built-in shop and AI shopping assistant.
 
-## 仓库结构
+**English** | [简体中文](README.zh-CN.md)
 
-```
-light-of-shadow/                 # monorepo 根（唯一 git 仓库）
-├── docs/                        # 项目文档（API / 设计 / 数据库）
-├── light-of-shadow-backend/     # Spring Boot 3 + MyBatis 后端
-└── light-of-shadow-client/      # Android 客户端（Kotlin + Compose）
-```
+> In-depth docs under [`docs/`](docs/) (API contracts, Git workflow, UI style) are currently written in Chinese. This README covers what you need to build and run the project.
 
-- 前后端同仓管理，接口变更与文档更新放在同一次提交里。
-- 改后端进 `light-of-shadow-backend/`，改客户端进 `light-of-shadow-client/`。
-- API 契约见 `docs/api/`，UI 规范见 `docs/style.md`。
-- 贡献方式见 [CONTRIBUTING.md](CONTRIBUTING.md)，安全漏洞请走 [SECURITY.md](SECURITY.md)，协议为 [Apache 2.0](LICENSE)。
+## Repository layout
 
-## Git 使用规范
-
-**完整指南见 [docs/git.md](docs/git.md)**（双人开发：分支、PR、冲突处理、monorepo 约定）。核心几条：
-
-1. **不直接在 `main` 上提交**，一律走 `feature/` `fix/` 分支 + Pull Request。
-2. **提交信息用中文**，一句话说明「做了什么 / 为什么」；一次提交只做一件事。
-3. **不要 `git add -A`**，`git status` 后按文件 add；不提交 `application.yaml`、`local.properties`、密钥。
-4. 跨前后端的接口改动，**`docs/api/` + 后端 + 客户端在同一 PR 一起改**。
-
-## 使用方式
-
-### Client（Android 客户端）
-
-在 `light-of-shadow-client/` 下打包 debug APK：
+Monorepo — backend, Android client, and docs live in one Git repository:
 
 ```
+light-of-shadow/
+├── docs/                        # API contracts, design, database, guides
+├── light-of-shadow-backend/     # Spring Boot 3 + MyBatis backend
+└── light-of-shadow-client/      # Android client (Kotlin + Compose)
+```
+
+- API contracts: [`docs/api/`](docs/api/)
+- UI style guide: [`docs/style.md`](docs/style.md)
+- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) · Security: [SECURITY.md](SECURITY.md) · License: [Apache 2.0](LICENSE)
+
+## Getting started
+
+### Android client
+
+From `light-of-shadow-client/`:
+
+```bash
 ./gradlew :app:assembleDebug          # macOS / Linux / WSL
 .\gradlew.bat :app:assembleDebug      # Windows
 ```
 
-一键「编译 + 安装到手机 + 启动」（WSL）：
+One-shot build + install + launch (WSL):
 
-```
+```bash
 ./install-debug.sh
 ```
 
-APK 输出在 `app/build/outputs/apk/debug/app-debug.apk`。
+The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 
-### Backend（后端）
+### Backend
 
-本地改完代码后，用 IDEA 的 Deployment + SFTP 上传到云服务器，再在服务器上打包运行：
-
-1. IDEA 配置 Deployment：连接云服务器，把 `light-of-shadow-backend/` 映射到服务器上的项目路径。
-2. 代码改动后上传（Upload）同步到服务器。
-3. SSH 登录服务器，进入项目目录执行：
-   ```
+1. Configure IntelliJ IDEA Deployment (SFTP) and map `light-of-shadow-backend/` to the project path on your cloud server.
+2. Upload code changes from IDEA.
+3. SSH into the server and run:
+   ```bash
    ./deploy.sh
    ```
-   脚本会 `mvn clean package` → 停掉旧进程 → 启动新 jar。
-4. 后端地址为 `http://<服务器IP>:8080`，客户端通过该地址联调。
+   The script runs `mvn clean package`, stops the old process, and starts the new jar.
+4. Backend base URL: `http://<server-ip>:8080` — the client is pointed at this host.
 
-### 测试
+Config secrets (`application.yaml`, DB credentials, `JWT_SECRET`, `DEEPSEEK_API_KEY`) are supplied via environment variables; see `light-of-shadow-backend/src/main/resources/application-example.yaml`. They are gitignored and must never be committed.
 
-测试由你手动完成：打包 → 上传 → 手机 / 浏览器实际操作验证。改动建议先自测通过后再提交。
+## Git workflow
+
+Full guide (Chinese): [docs/git.md](docs/git.md). Highlights:
+
+1. Never commit directly to `main` — use `feature/` / `fix/` branches and open a Pull Request.
+2. Commit messages: one line in Chinese, stating **what / why**. One concern per commit.
+3. Do not use `git add -A`. Stage files by name; never commit `application.yaml`, `local.properties`, or secrets.
+4. Cross-cutting API changes ship in **one PR**: `docs/api/` + backend + client together.
+
+## Testing
+
+Manual for now: build → deploy/install → verify on a phone or in a browser. Self-test before you open a PR.
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE).
