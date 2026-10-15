@@ -16,6 +16,7 @@ Thumbs.db
 .project
 .settings/
 *.sublime-workspace
+.cache/
 
 # --- Java / Maven (backend) ---
 target/
@@ -42,10 +43,10 @@ externalNativeBuild/
 *.jks
 
 # --- Secrets (NEVER commit) ---
-src/main/resources/application.yaml
-src/main/resources/application-*.yaml
-!src/main/resources/application-example.yaml
-src/test/resources/application-*.yaml
+**/src/main/resources/application.yaml
+**/src/main/resources/application-*.yaml
+!**/src/main/resources/application-example.yaml
+**/src/test/resources/application-*.yaml
 .env
 .env.local
 .env.*.local
