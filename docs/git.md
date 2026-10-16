@@ -13,7 +13,7 @@
 |---|---|---|
 | 默认分工 | 一人偏后端，一人偏客户端 | 不是死板的「只许改自己的目录」，跨目录改完知会一声 |
 | 共同责任 | `docs/` | 接口契约两人共管，改动必须走 PR，对方看过再合 |
-| 仓库权限 | **仓库主**（owner）有推/合权限；**协作者不加 Collaborator** | 协作者走 **Fork + PR**，见 [§11 Fork 协作完整流程](#10-fork-协作完整流程外部贡献者--无-collaborator-权限) |
+| 仓库权限 | **仓库主**（owner）有推/合权限；**协作者不加 Collaborator** | 协作者走 **Fork + PR**，见 [§10 Fork 协作完整流程](#10-fork-协作完整流程外部贡献者--无-collaborator-权限) |
 
 > **权限模型说明**：本仓库 `main` 已开分支保护（必须 PR、禁止 force push、admin 同样受限）。
 > - **仓库主**：在本仓库开分支、推分支、点 Merge。
@@ -58,7 +58,7 @@ git pull                 # 确保 main 是最新的
 git checkout -b feature/商城搜索
 ```
 
-**协作者（Fork 流程）：** 先把上游 `main` 同步进自己的 Fork，再开分支，见 [§11](#10-fork-协作完整流程外部贡献者--无-collaborator-权限)。
+**协作者（Fork 流程）：** 先把上游 `main` 同步进自己的 Fork，再开分支，见 [§10](#10-fork-协作完整流程外部贡献者--无-collaborator-权限)。
 
 ---
 
@@ -143,7 +143,7 @@ git push -u origin feature/商城搜索
 
 ### 流程（协作者：Fork 分支 → 主仓库 PR）
 
-完整命令见 [§11](#10-fork-协作完整流程外部贡献者--无-collaborator-权限)。骨架：
+完整命令见 [§10](#10-fork-协作完整流程外部贡献者--无-collaborator-权限)。骨架：
 
 ```
 在自己的 Fork 里推 feature 分支
@@ -577,7 +577,7 @@ git merge main                # 已 push 给别人看时用 merge；见 §5
 
 **每次开工**
 
-- [ ] `git checkout main && git pull`（Fork 流程先 `git fetch upstream` 再合并，见 [§11.2](#102-日常开工同步上游再开分支)）
+- [ ] `git checkout main && git pull`（Fork 流程先 `git fetch upstream` 再合并，见 [§10.2](#102-日常开工同步上游再开分支)）
 - [ ] 知道对方今天在动哪块
 
 **每次提交**
@@ -603,4 +603,4 @@ git merge main                # 已 push 给别人看时用 merge；见 §5
 **每次合并后**
 
 - [ ] 删掉已合并的分支（本地 + Fork 远程）
-- [ ] 各自同步主仓库 `main`（Fork 流程见 [§11.7](#107-合并后协作者收尾)）
+- [ ] 各自同步主仓库 `main`（Fork 流程见 [§10.7](#107-合并后协作者收尾)）
