@@ -6,6 +6,9 @@ import org.yan.lightofshadowbackend.auth.dto.RefreshRequest;
 import org.yan.lightofshadowbackend.auth.dto.RefreshResponse;
 import org.yan.lightofshadowbackend.auth.dto.RegisterRequest;
 import org.yan.lightofshadowbackend.auth.dto.RegisterResponse;
+import org.yan.lightofshadowbackend.auth.dto.ResetPasswordRequest;
+import org.yan.lightofshadowbackend.auth.dto.SendCodeRequest;
+import org.yan.lightofshadowbackend.auth.dto.SendCodeResponse;
 
 public interface AuthService {
 
@@ -14,5 +17,9 @@ public interface AuthService {
     RegisterResponse register(RegisterRequest request);
 
     RefreshResponse refresh(RefreshRequest request);
+
+    SendCodeResponse sendCode(SendCodeRequest request);
+
+    void resetPassword(ResetPasswordRequest request);
 }
 

@@ -44,6 +44,8 @@ public class GlobalExceptionHandler {
             case UNAUTHORIZED -> HttpStatus.UNAUTHORIZED;
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
             case NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case TOO_MANY_REQUESTS -> HttpStatus.TOO_MANY_REQUESTS;
+            case CODE_INVALID -> HttpStatus.BAD_REQUEST;
             case SESSION_NOT_FOUND -> HttpStatus.BAD_REQUEST;
             case SESSION_ENDED -> HttpStatus.BAD_REQUEST;
             case INTERNAL_SERVER_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;

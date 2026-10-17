@@ -18,6 +18,7 @@
 | 文档 | 说明 |
 |---|---|
 | [style.md](style.md) | 客户端 UI 风格（Neumorphism）与组件约定 |
+| [smtp-setup.md](smtp-setup.md) | 验证码真实发信（QQ 邮箱 SMTP）配置步骤 |
 
 ## 数据库
 
@@ -26,6 +27,12 @@
 | [db/mysql_schema.sql](db/mysql_schema.sql) | 用户与基础表 |
 | [db/mysql_add_user_role.sql](db/mysql_add_user_role.sql) | 用户角色字段 |
 | [db/mysql_shop_tables.sql](db/mysql_shop_tables.sql) | 商城相关表 |
+
+## 规划
+
+| 文档 | 说明 |
+|---|---|
+| [plan.md](plan.md) | 下一阶段计划：技术栈（Java + Python Agent + Redis）与功能对照、里程碑 |
 
 ## 协作
 
