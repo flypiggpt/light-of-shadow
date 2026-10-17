@@ -12,6 +12,11 @@ import org.yan.lightofshadowbackend.auth.dto.RefreshRequest;
 import org.yan.lightofshadowbackend.auth.dto.RefreshResponse;
 import org.yan.lightofshadowbackend.auth.dto.RegisterRequest;
 import org.yan.lightofshadowbackend.auth.dto.RegisterResponse;
+import org.yan.lightofshadowbackend.auth.dto.ResetPasswordRequest;
+import org.yan.lightofshadowbackend.auth.dto.SendCodeRequest;
+import org.yan.lightofshadowbackend.auth.dto.SendCodeResponse;
+import org.yan.lightofshadowbackend.auth.code.VerificationCodeService;
+import org.springframework.core.env.Environment;
 import org.yan.lightofshadowbackend.auth.mapper.RefreshTokenMapper;
 import org.yan.lightofshadowbackend.auth.mapper.UserMapper;
 import org.yan.lightofshadowbackend.auth.service.AuthService;
@@ -32,17 +37,23 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
     private final AuthProperties authProperties;
+    private final VerificationCodeService verificationCodeService;
+    private final Environment environment;
 
     public AuthServiceImpl(UserMapper userMapper,
                            RefreshTokenMapper refreshTokenMapper,
                            PasswordEncoder passwordEncoder,
                            TokenService tokenService,
-                           AuthProperties authProperties) {
+                           AuthProperties authProperties,
+                           VerificationCodeService verificationCodeService,
+                           Environment environment) {
         this.userMapper = userMapper;
         this.refreshTokenMapper = refreshTokenMapper;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
         this.authProperties = authProperties;
+        this.verificationCodeService = verificationCodeService;
+        this.environment = environment;
     }
 
     @Override
@@ -117,6 +128,54 @@ public class AuthServiceImpl implements AuthService {
 
         String accessToken = tokenService.createAccessToken(user, authProperties.accessTokenTtl());
         return new RefreshResponse(accessToken, authProperties.accessTokenTtl().toSeconds());
+    }
+
+    @Override
+    public SendCodeResponse sendCode(SendCodeRequest request) {
+        // channel 预留 sms；当前仅 email
+        String channel = request.channel() == null ? "email" : request.channel().trim();
+        if (!"email".equalsIgnoreCase(channel)) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "channel当前仅支持email");
+        }
+        VerificationCodeService.SendResult result = verificationCodeService.send(request.effectiveTarget(), request.scene());
+        return buildSendResponse(result);
+    }
+
+    private SendCodeResponse buildSendResponse(VerificationCodeService.SendResult result) {
+        boolean dev = isDevProfile();
+        return new SendCodeResponse(
+                result.expiresIn(),
+                result.resendAfter(),
+                dev ? result.code() : null
+        );
+    }
+
+    private boolean isDevProfile() {
+        if (environment == null) {
+            return true;
+        }
+        // prod 下不回显；其余（default/dev）回显便于联调
+        return !environment.acceptsProfiles(org.springframework.core.env.Profiles.of("prod"));
+    }
+
+    @Override
+    public void resetPassword(ResetPasswordRequest request) {
+        String account = normalizeAccount(requireText(request.account(), 128, "账号不能为空", "账号长度不能超过128"));
+        String newPassword = requireText(request.newPassword(), 72, "新密码不能为空", "新密码长度不能超过72");
+        if (newPassword.length() < 8) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "新密码长度不能少于8位");
+        }
+        verificationCodeService.verifyAndConsume(account, VerificationCodeService.Scene.RESET.value(), request.verificationCode());
+
+        UserEntity user = userMapper.selectByAccount(account);
+        if (user == null) {
+            throw new ApiException(ErrorCode.NOT_FOUND, "账号不存在");
+        }
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setUpdatedAt(Instant.now());
+        if (userMapper.update(user) != 1) {
+            throw new ApiException(ErrorCode.INTERNAL_SERVER_ERROR, "密码重置失败");
+        }
     }
 
     private void persistRefreshToken(String userId, String refreshToken) {

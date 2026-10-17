@@ -10,5 +10,7 @@ public interface UserMapper {
     UserEntity selectById(@Param("id") String id);
 
     int insert(UserEntity user);
+
+    int update(UserEntity user);
 }
 

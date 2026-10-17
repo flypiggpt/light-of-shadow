@@ -34,5 +34,15 @@
         VALUES (#{id}, #{account}, #{passwordHash}, #{nickname}, #{avatarUrl}, #{status}, #{role}, #{createdAt}, #{updatedAt})
     </insert>
 
+    <update id="update" parameterType="org.yan.lightofshadowbackend.entity.UserEntity">
+        UPDATE sys_user
+        SET password_hash = #{passwordHash},
+            nickname = #{nickname},
+            avatar_url = #{avatarUrl},
+            status = #{status},
+            role = #{role},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
 </mapper>
 

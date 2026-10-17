@@ -23,6 +23,12 @@ server:
 
 app:
   auth:
+    code:
+      ttl: 5m
+      resend-interval: 60s
+      daily-limit: 10
+      max-attempts: 5
+      length: 6
     jwt:
       issuer: light-of-shadow-backend
       secret: ${JWT_SECRET:change-me-to-a-long-random-secret-for-production-please}
