@@ -58,15 +58,32 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponse login(LoginRequest request) {
-        String rawAccount = requireText(request.account(), 128, "账号不能为空", "账号长度不能超过128");
-        String rawPassword = requireText(request.password(), 72, "密码不能为空", "密码长度不能超过72");
-        String account = normalizeAccount(rawAccount);
+        String account = normalizeAccount(requireText(request.account(), 128, "账号不能为空", "账号长度不能超过128"));
+        boolean hasPassword = request.password() != null && !request.password().isBlank();
+        boolean hasCode = request.verificationCode() != null && !request.verificationCode().isBlank();
+        if (!hasPassword && !hasCode) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "请输入密码或验证码");
+        }
+        if (hasPassword && hasCode) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "密码与验证码只能二选一");
+        }
+
         UserEntity user = userMapper.selectByAccount(account);
-        if (user == null || !passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
+        if (user == null) {
             throw new ApiException(ErrorCode.UNAUTHORIZED, "账号或密码错误");
         }
         if (user.getStatus() == UserStatus.DISABLED) {
             throw new ApiException(ErrorCode.FORBIDDEN, "账号已被禁用");
+        }
+
+        if (hasPassword) {
+            String rawPassword = requireText(request.password(), 72, "密码不能为空", "密码长度不能超过72");
+            if (!passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
+                throw new ApiException(ErrorCode.UNAUTHORIZED, "账号或密码错误");
+            }
+        } else {
+            // 验证码登录：校验并消费
+            verificationCodeService.verifyAndConsume(account, VerificationCodeService.Scene.LOGIN.value(), request.verificationCode().trim());
         }
 
         String accessToken = tokenService.createAccessToken(user, authProperties.accessTokenTtl());
@@ -87,6 +104,11 @@ public class AuthServiceImpl implements AuthService {
         String account = normalizeAccount(requireText(request.account(), 128, "账号不能为空", "账号长度不能超过128"));
         String password = requireText(request.password(), 72, "密码不能为空", "密码长度不能超过72");
         String nickname = requireText(request.nickname(), 64, "昵称不能为空", "昵称长度不能超过64");
+        if (password.length() < 8) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "密码长度不能少于8位");
+        }
+        // 注册必须先验码（scene=register）
+        verificationCodeService.verifyAndConsume(account, VerificationCodeService.Scene.REGISTER.value(), request.verificationCode());
         if (userMapper.selectByAccount(account) != null) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "账号已存在");
         }

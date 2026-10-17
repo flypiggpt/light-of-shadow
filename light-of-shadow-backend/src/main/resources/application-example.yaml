@@ -11,6 +11,15 @@ spring:
       max-file-size: 5MB
       max-request-size: 5MB
 
+  # 发信（启用 EmailCodeSender）。不配则用 DevCodeSender（日志回显验证码）
+  # mail:
+  #   host: smtp.qq.com
+  #   port: 465
+  #   username: ${MAIL_USERNAME:your@qq.com}
+  #   password: ${MAIL_PASSWORD:your-smtp-auth-code}
+  #   properties:
+  #     mail.smtp.ssl.enable: true
+
 mybatis:
   configuration:
     map-underscore-to-camel-case: true

@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -75,12 +76,15 @@ fun LoginScreen(
 ) {
 	val snackbarHostState = remember { SnackbarHostState() }
 	val focusManager = LocalFocusManager.current
+	val context = LocalContext.current
 	val scope = rememberCoroutineScope()
 	val emptyFieldsMessage = stringResource(R.string.empty_fields_hint)
 	val loadingMessage = stringResource(R.string.login_loading_hint)
 
 	var account by rememberSaveable { mutableStateOf("") }
 	var password by rememberSaveable { mutableStateOf("") }
+	var verificationCode by rememberSaveable { mutableStateOf("") }
+	var loginByCode by rememberSaveable { mutableStateOf(false) }
 	var isLoading by remember { mutableStateOf(false) }
 
 	Scaffold(
@@ -140,32 +144,107 @@ fun LoginScreen(
 							)
 						)
 
-						NeumorphicTextField(
-							label = stringResource(R.string.password_label),
-							placeholder = stringResource(R.string.password_placeholder),
-							value = password,
-							onValueChange = { password = it },
-							isPassword = true,
-							keyboardOptions = KeyboardOptions(
-								keyboardType = KeyboardType.Password,
-								imeAction = ImeAction.Done
-							),
-							keyboardActions = KeyboardActions(
-								onDone = {
-									focusManager.clearFocus()
-									submitLogin(
-										account = account,
-										password = password,
-										onLoginClick = onLoginClick,
-										snackbarHostState = snackbarHostState,
-										scope = scope,
-										emptyFieldsMessage = emptyFieldsMessage,
-										loadingMessage = loadingMessage,
-										onLoadingChange = { isLoading = it }
-									)
-								}
+						if (!loginByCode) {
+							NeumorphicTextField(
+								label = stringResource(R.string.password_label),
+								placeholder = stringResource(R.string.password_placeholder),
+								value = password,
+								onValueChange = { password = it },
+								isPassword = true,
+								keyboardOptions = KeyboardOptions(
+									keyboardType = KeyboardType.Password,
+									imeAction = ImeAction.Done
+								),
+								keyboardActions = KeyboardActions(
+									onDone = {
+										focusManager.clearFocus()
+										submitLogin(
+											account = account,
+											password = password,
+											onLoginClick = onLoginClick,
+											snackbarHostState = snackbarHostState,
+											scope = scope,
+											emptyFieldsMessage = emptyFieldsMessage,
+											loadingMessage = loadingMessage,
+											onLoadingChange = { isLoading = it }
+										)
+									}
+								)
 							)
-						)
+						} else {
+							Row(
+								verticalAlignment = Alignment.CenterVertically,
+								horizontalArrangement = Arrangement.spacedBy(8.dp)
+							) {
+								NeumorphicTextField(
+									modifier = Modifier.weight(1f),
+									label = stringResource(R.string.verification_code_label),
+									placeholder = stringResource(R.string.verification_code_placeholder),
+									value = verificationCode,
+									onValueChange = { verificationCode = it },
+									keyboardOptions = KeyboardOptions(
+										keyboardType = KeyboardType.Number,
+										imeAction = ImeAction.Done
+									),
+									keyboardActions = KeyboardActions(
+										onDone = {
+											focusManager.clearFocus()
+											submitLogin(
+												account = account,
+												password = "",
+												verificationCode = verificationCode,
+												loginByCode = true,
+												onLoginClick = onLoginClick,
+												snackbarHostState = snackbarHostState,
+												scope = scope,
+												emptyFieldsMessage = emptyFieldsMessage,
+												loadingMessage = loadingMessage,
+												onLoadingChange = { isLoading = it }
+											)
+										}
+									)
+								)
+								Button(
+									onClick = {
+										if (account.isBlank()) {
+											scope.launch {
+												snackbarHostState.showSnackbar(context.getString(R.string.code_login_need_email_hint))
+											}
+											return@Button
+										}
+										scope.launch {
+											try {
+												val resp = withContext(Dispatchers.IO) {
+													ApiClient.sendCode(account.trim(), "login")
+												}
+												if (resp.code == 0) {
+													snackbarHostState.showSnackbar(context.getString(R.string.code_sent_success))
+												} else {
+													snackbarHostState.showSnackbar(resp.message ?: "发送失败")
+												}
+											} catch (e: Exception) {
+												snackbarHostState.showSnackbar("网络错误：${e.message ?: "未知错误"}")
+											}
+										}
+									},
+									modifier = Modifier.padding(top = 20.dp)
+								) {
+									Text(stringResource(R.string.send_code_button), style = MaterialTheme.typography.labelMedium)
+								}
+							}
+						}
+
+						TextButton(
+							onClick = { loginByCode = !loginByCode },
+							contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
+							modifier = Modifier.fillMaxWidth()
+						) {
+							Text(
+								text = stringResource(if (loginByCode) R.string.login_by_password else R.string.login_by_code),
+								color = GoldPrimary,
+								style = MaterialTheme.typography.labelLarge
+							)
+						}
 
 						Button(
 							onClick = {
@@ -173,6 +252,8 @@ fun LoginScreen(
 								submitLogin(
 									account = account,
 									password = password,
+									verificationCode = verificationCode,
+									loginByCode = loginByCode,
 									onLoginClick = onLoginClick,
 									snackbarHostState = snackbarHostState,
 									scope = scope,
@@ -324,7 +405,8 @@ private fun NeumorphicTextField(
 	onValueChange: (String) -> Unit,
 	keyboardOptions: KeyboardOptions,
 	keyboardActions: KeyboardActions,
-	isPassword: Boolean = false
+	isPassword: Boolean = false,
+	modifier: Modifier = Modifier
 ) {
 	NeumorphicSurface(
 		modifier = Modifier.fillMaxWidth(),
@@ -366,6 +448,8 @@ private fun NeumorphicTextField(
 private fun submitLogin(
 	account: String,
 	password: String,
+	verificationCode: String = "",
+	loginByCode: Boolean = false,
 	onLoginClick: (String, String) -> Unit,
 	snackbarHostState: SnackbarHostState,
 	scope: kotlinx.coroutines.CoroutineScope,
@@ -373,7 +457,7 @@ private fun submitLogin(
 	loadingMessage: String,
 	onLoadingChange: (Boolean) -> Unit
 ) {
-	if (account.isBlank() || password.isBlank()) {
+	if (account.isBlank() || (!loginByCode && password.isBlank()) || (loginByCode && verificationCode.isBlank())) {
 		scope.launch {
 			snackbarHostState.showSnackbar(emptyFieldsMessage)
 		}
@@ -392,7 +476,11 @@ private fun submitLogin(
 			// Use withTimeoutOrNull to enforce a 15-second timeout
 			val resp = withTimeoutOrNull(15_000L) {
 				withContext(Dispatchers.IO) {
-					ApiClient.login(account.trim(), password)
+					if (loginByCode) {
+						ApiClient.loginWithCode(account.trim(), verificationCode.trim())
+					} else {
+						ApiClient.login(account.trim(), password)
+					}
 				}
 			}
 			

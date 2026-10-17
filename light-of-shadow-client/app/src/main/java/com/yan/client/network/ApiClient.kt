@@ -108,17 +108,44 @@ object ApiClient {
     }
 
     /**
+     * POST /api/auth/login  （验证码登录）
+     */
+    @Throws(Exception::class)
+    fun loginWithCode(account: String, verificationCode: String): ApiResponse {
+        val body = JSONObject().apply {
+            put("account", account)
+            put("verificationCode", verificationCode)
+        }
+        return request("POST", "/auth/login", body)
+    }
+
+    /**
      * POST /api/auth/register
      * Create a new user account
      */
     @Throws(Exception::class)
-    fun register(account: String, password: String, nickname: String? = null): ApiResponse {
+    fun register(account: String, password: String, nickname: String? = null, verificationCode: String = ""): ApiResponse {
         val body = JSONObject().apply {
             put("account", account)
             put("password", password)
             if (!nickname.isNullOrBlank()) put("nickname", nickname)
+            put("verificationCode", verificationCode)
         }
         return request("POST", "/auth/register", body)
+    }
+
+    /**
+     * POST /api/auth/code
+     * scene: register | login | reset
+     */
+    @Throws(Exception::class)
+    fun sendCode(target: String, scene: String): ApiResponse {
+        val body = JSONObject().apply {
+            put("channel", "email")
+            put("target", target)
+            put("scene", scene)
+        }
+        return request("POST", "/auth/code", body)
     }
 
     /**

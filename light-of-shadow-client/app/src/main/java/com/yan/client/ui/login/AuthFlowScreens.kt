@@ -71,6 +71,7 @@ fun RegisterScreen(
     var nickname by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var confirmPassword by rememberSaveable { mutableStateOf("") }
+    var verificationCode by rememberSaveable { mutableStateOf("") }
 
     Scaffold(
         modifier = modifier,
@@ -127,12 +128,57 @@ fun RegisterScreen(
                             keyboardType = KeyboardType.Password
                         )
 
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            AuthInput(
+                                modifier = Modifier.weight(1f),
+                                label = stringResource(R.string.verification_code_label),
+                                value = verificationCode,
+                                placeholder = stringResource(R.string.verification_code_placeholder),
+                                onValueChange = { verificationCode = it },
+                                keyboardType = KeyboardType.Number
+                            )
+                            Button(
+                                onClick = {
+                                    if (account.isBlank()) {
+                                        scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.account_required_hint)) }
+                                        return@Button
+                                    }
+                                    scope.launch {
+                                        try {
+                                            val resp = withContext(Dispatchers.IO) {
+                                                ApiClient.sendCode(account.trim(), "register")
+                                            }
+                                            if (resp.code == 0) {
+                                                snackbarHostState.showSnackbar(context.getString(R.string.code_sent_success))
+                                            } else {
+                                                snackbarHostState.showSnackbar(resp.message ?: "发送失败")
+                                            }
+                                        } catch (e: Exception) {
+                                            snackbarHostState.showSnackbar("网络错误：${e.message ?: "未知错误"}")
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.padding(top = 20.dp)
+                            ) {
+                                Text(stringResource(R.string.send_code_button))
+                            }
+                        }
+
                         Button(
                             onClick = {
                                 when {
                                     account.isBlank() || nickname.isBlank() || password.isBlank() || confirmPassword.isBlank() -> {
                                         scope.launch {
                                             snackbarHostState.showSnackbar(context.getString(R.string.empty_register_fields_hint))
+                                        }
+                                    }
+
+                                    verificationCode.isBlank() -> {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(context.getString(R.string.register_need_code_hint))
                                         }
                                     }
 
@@ -147,7 +193,7 @@ fun RegisterScreen(
                                         scope.launch {
                                             try {
                                                 val resp = withContext(Dispatchers.IO) {
-                                                    ApiClient.register(account.trim(), password, nickname.trim())
+                                                    ApiClient.register(account.trim(), password, nickname.trim(), verificationCode.trim())
                                                 }
                                                 if (resp.code == 0) {
                                                     Toast.makeText(context, context.getString(R.string.register_success), Toast.LENGTH_SHORT).show()
@@ -405,10 +451,11 @@ private fun AuthInput(
     placeholder: String,
     onValueChange: (String) -> Unit,
     isPassword: Boolean = false,
-    keyboardType: KeyboardType = KeyboardType.Text
+    keyboardType: KeyboardType = KeyboardType.Text,
+    modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .shadow(
                 elevation = 6.dp,

@@ -6,8 +6,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 默认发码实现：不发真实邮件，验证码打日志。
- * 未配置 SMTP / 未启用 EmailCodeSender 时始终可用，保证服务能启动。
- * 后续加入 EmailCodeSender 并标记 @Primary 后，自动改走邮件。
+ * 配置 spring.mail.host 后 EmailCodeSender 以 @Primary 覆盖本实现。
  */
 @Component
 public class DevCodeSender implements CodeSender {

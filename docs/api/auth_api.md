@@ -17,15 +17,23 @@ Base URL: `http://<host>:8080/api`
 - `code == 0` 表示成功
 - 常见错误码：`400` 参数错误、`401` 未授权、`403` 禁止、`404` 未找到、`429` 请求过于频繁、`4011` 验证码无效、`500` 服务器错误
 
-## 1. 登录
+## 1. 登录（密码 / 验证码 二选一）
 
 `POST /api/auth/login`
 
-请求体：
+**方式 A：密码登录**
 
 ```json
 { "account": "user@example.com", "password": "password123" }
 ```
+
+**方式 B：验证码登录**
+
+```json
+{ "account": "user@example.com", "verificationCode": "482913" }
+```
+
+说明：`password` 与 `verificationCode` 只能填一个；验证码 scene 为 `login`。
 
 成功响应：
 
@@ -46,15 +54,22 @@ Base URL: `http://<host>:8080/api`
 
 说明：`accessToken` 为 JWT（默认 2 小时）；`refreshToken` 为不透明随机串，以 SHA-256 哈希存储（默认 30 天）。
 
-## 2. 注册
+## 2. 注册（需邮箱验证码）
 
 `POST /api/auth/register`
 
 请求体：
 
 ```json
-{ "account": "new@example.com", "password": "pwd123", "nickname": "New" }
+{
+  "account": "new@example.com",
+  "password": "pwd12345",
+  "nickname": "New",
+  "verificationCode": "482913"
+}
 ```
+
+说明：先调 `/api/auth/code`（scene=`register`）获取验证码；密码长度 ≥ 8；`account` 建议使用邮箱。
 
 成功响应：
 
@@ -92,7 +107,7 @@ Base URL: `http://<host>:8080/api`
 |---|---|
 | channel | 目前仅 `email`（预留 `sms`） |
 | target | 收件邮箱 |
-| scene | `login` / `register` / `reset` |
+| scene | `login`（登录）/ `register`（注册）/ `reset`（重置密码） |
 
 成功响应：
 

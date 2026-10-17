@@ -89,4 +89,11 @@
     <string name="tts_missing_voice_data_hint">当前系统缺少中文语音包，请先在系统设置中下载中文语音数据</string>
     <string name="tts_unsupported_language_hint">当前 TTS 引擎不支持中文，请切换到支持中文的语音引擎</string>
     <string name="tts_speak_failed_hint">语音播报失败，请检查系统 TTS 引擎和音量设置后重试</string>
+    <string name="login_by_code">验证码登录</string>
+    <string name="login_by_password">密码登录</string>
+    <string name="email_label">邮箱</string>
+    <string name="email_placeholder">请输入邮箱</string>
+    <string name="register_need_code_hint">请先获取邮箱验证码</string>
+    <string name="code_login_need_email_hint">请输入邮箱并获取验证码</string>
+    <string name="resend_code_wait">请稍后再发送验证码</string>
 </resources>
