@@ -4,9 +4,9 @@
     <string name="login_title">音影寻光</string>
     <string name="login_subtitle">登录后同步你的音影检索记录与收藏内容</string>
     <string name="login_card_title">欢迎回来</string>
-    <string name="login_card_desc">请输入账号与密码，继续探索你想找回的世界。</string>
-    <string name="account_label">账号</string>
-    <string name="account_placeholder">手机号 / 邮箱 / 用户名</string>
+    <string name="login_card_desc">使用用户名或邮箱登录，继续探索你想找回的世界。</string>
+    <string name="account_label">用户名 / 邮箱</string>
+    <string name="account_placeholder">用户名或邮箱</string>
     <string name="password_label">密码</string>
     <string name="password_placeholder">请输入密码</string>
     <string name="login_button">登录</string>
@@ -28,7 +28,7 @@
     <string name="empty_register_fields_hint">请完整填写注册信息</string>
     <string name="password_not_match_hint">两次输入的密码不一致</string>
     <string name="register_success">注册成功</string>
-    <string name="account_required_hint">请输入账号</string>
+    <string name="account_required_hint">请输入用户名或邮箱</string>
     <string name="send_code_button">发送验证码</string>
     <string name="code_sent_success">验证码发送成功</string>
     <string name="verification_code_label">验证码</string>
@@ -91,9 +91,15 @@
     <string name="tts_speak_failed_hint">语音播报失败，请检查系统 TTS 引擎和音量设置后重试</string>
     <string name="login_by_code">验证码登录</string>
     <string name="login_by_password">密码登录</string>
-    <string name="email_label">邮箱</string>
-    <string name="email_placeholder">请输入邮箱</string>
+    <string name="email_label">用户名 / 邮箱</string>
+    <string name="email_placeholder">用户名或邮箱</string>
     <string name="register_need_code_hint">请先获取邮箱验证码</string>
     <string name="code_login_need_email_hint">请输入邮箱并获取验证码</string>
     <string name="resend_code_wait">请稍后再发送验证码</string>
+    <string name="email_invalid_hint">请输入正确的邮箱地址</string>
+    <string name="password_too_short_hint">密码至少 8 位</string>
+    <string name="code_countdown_format">%1$ds 后重发</string>
+    <string name="username_invalid_hint">用户名只能包含字母或数字</string>
+    <string name="email_only_code_hint">验证码仅支持邮箱账号，请使用邮箱</string>
+    <string name="email_only_reset_hint">找回密码请使用邮箱账号</string>
 </resources>

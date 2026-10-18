@@ -104,11 +104,14 @@ public class AuthServiceImpl implements AuthService {
         String account = normalizeAccount(requireText(request.account(), 128, "账号不能为空", "账号长度不能超过128"));
         String password = requireText(request.password(), 72, "密码不能为空", "密码长度不能超过72");
         String nickname = requireText(request.nickname(), 64, "昵称不能为空", "昵称长度不能超过64");
-        if (password.length() < 8) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "密码长度不能少于8位");
+        // 注册：邮箱必须验码；用户名（无@）无需验证码
+        if (account.contains("@")) {
+            verificationCodeService.verifyAndConsume(account, VerificationCodeService.Scene.REGISTER.value(), request.verificationCode());
+        } else {
+            if (!account.matches("^[a-zA-Z0-9]+$")) {
+                throw new ApiException(ErrorCode.BAD_REQUEST, "用户名只能包含字母或数字");
+            }
         }
-        // 注册必须先验码（scene=register）
-        verificationCodeService.verifyAndConsume(account, VerificationCodeService.Scene.REGISTER.value(), request.verificationCode());
         if (userMapper.selectByAccount(account) != null) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "账号已存在");
         }
@@ -184,9 +187,6 @@ public class AuthServiceImpl implements AuthService {
     public void resetPassword(ResetPasswordRequest request) {
         String account = normalizeAccount(requireText(request.account(), 128, "账号不能为空", "账号长度不能超过128"));
         String newPassword = requireText(request.newPassword(), 72, "新密码不能为空", "新密码长度不能超过72");
-        if (newPassword.length() < 8) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "新密码长度不能少于8位");
-        }
         verificationCodeService.verifyAndConsume(account, VerificationCodeService.Scene.RESET.value(), request.verificationCode());
 
         UserEntity user = userMapper.selectByAccount(account);
