@@ -79,7 +79,6 @@ fun LoginScreen(
 	val context = LocalContext.current
 	val scope = rememberCoroutineScope()
 	val emptyFieldsMessage = stringResource(R.string.empty_fields_hint)
-	val loadingMessage = stringResource(R.string.login_loading_hint)
 
 	var account by rememberSaveable { mutableStateOf("") }
 	var password by rememberSaveable { mutableStateOf("") }
@@ -165,7 +164,6 @@ fun LoginScreen(
 											snackbarHostState = snackbarHostState,
 											scope = scope,
 											emptyFieldsMessage = emptyFieldsMessage,
-											loadingMessage = loadingMessage,
 											onLoadingChange = { isLoading = it }
 										)
 									}
@@ -198,7 +196,6 @@ fun LoginScreen(
 												snackbarHostState = snackbarHostState,
 												scope = scope,
 												emptyFieldsMessage = emptyFieldsMessage,
-												loadingMessage = loadingMessage,
 												onLoadingChange = { isLoading = it }
 											)
 										}
@@ -287,7 +284,6 @@ fun LoginScreen(
 									snackbarHostState = snackbarHostState,
 									scope = scope,
 									emptyFieldsMessage = emptyFieldsMessage,
-									loadingMessage = loadingMessage,
 									onLoadingChange = { isLoading = it }
 								)
 							},
@@ -484,7 +480,6 @@ private fun submitLogin(
 	snackbarHostState: SnackbarHostState,
 	scope: kotlinx.coroutines.CoroutineScope,
 	emptyFieldsMessage: String,
-	loadingMessage: String,
 	onLoadingChange: (Boolean) -> Unit
 ) {
 	if (account.isBlank() || (!loginByCode && password.isBlank()) || (loginByCode && verificationCode.isBlank())) {
@@ -510,11 +505,6 @@ private fun submitLogin(
 	scope.launch {
 		onLoadingChange(true)
 		try {
-			// show a neutral loading snackbar asynchronously (don't block on it)
-			scope.launch {
-				snackbarHostState.showSnackbar(loadingMessage)
-			}
-
 			// Use withTimeoutOrNull to enforce a 15-second timeout
 			val resp = withTimeoutOrNull(15_000L) {
 				withContext(Dispatchers.IO) {

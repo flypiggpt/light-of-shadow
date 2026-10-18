@@ -172,7 +172,24 @@ public class AuthServiceImpl implements AuthService {
         if (!"email".equalsIgnoreCase(channel)) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "channel当前仅支持email");
         }
-        VerificationCodeService.SendResult result = verificationCodeService.send(request.effectiveTarget(), request.scene());
+        String target = request.effectiveTarget();
+        String scene = request.scene() == null ? "" : request.scene().trim();
+
+        // 登录 / 找回密码：仅已注册邮箱可收验证码
+        // 注册：邮箱尚未注册才发（避免占用他人邮箱）
+        if ("login".equalsIgnoreCase(scene) || "reset".equalsIgnoreCase(scene)) {
+            String email = normalizeEmail(target);
+            if (userMapper.selectByEmail(email) == null) {
+                throw new ApiException(ErrorCode.NOT_FOUND, "该邮箱尚未注册");
+            }
+        } else if ("register".equalsIgnoreCase(scene)) {
+            String email = normalizeEmail(target);
+            if (userMapper.selectByEmail(email) != null) {
+                throw new ApiException(ErrorCode.BAD_REQUEST, "该邮箱已注册，请直接登录");
+            }
+        }
+
+        VerificationCodeService.SendResult result = verificationCodeService.send(target, scene);
         return buildSendResponse(result);
     }
 

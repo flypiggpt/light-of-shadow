@@ -131,6 +131,7 @@ Base URL: `http://<host>:8080/api`
 - `resendAfter` 最短重发间隔（秒），默认 60
 - `verificationCode` **仅非 prod 回显**（便于 dev 联调）；生产为 `null`，验证码通过邮件送达
 - 频控：同邮箱同场景 60s 内不可重发；日上限默认 10 次；错误尝试默认 5 次后作废
+- **注册校验**：`scene=login/reset` 仅已注册邮箱可发码（未注册返回 404）；`scene=register` 仅未注册邮箱可发码（已注册返回 400）
 
 ## 5. 忘记密码（触发发码）
 
