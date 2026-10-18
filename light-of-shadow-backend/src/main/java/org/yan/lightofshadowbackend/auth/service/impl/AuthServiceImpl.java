@@ -58,7 +58,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponse login(LoginRequest request) {
-        String account = normalizeAccount(requireText(request.account(), 128, "账号不能为空", "账号长度不能超过128"));
+        String account = requireText(request.account(), 128, "请输入用户名或邮箱", "内容长度不能超过128");
         boolean hasPassword = request.password() != null && !request.password().isBlank();
         boolean hasCode = request.verificationCode() != null && !request.verificationCode().isBlank();
         if (!hasPassword && !hasCode) {
@@ -68,22 +68,28 @@ public class AuthServiceImpl implements AuthService {
             throw new ApiException(ErrorCode.BAD_REQUEST, "密码与验证码只能二选一");
         }
 
-        UserEntity user = userMapper.selectByAccount(account);
-        if (user == null) {
-            throw new ApiException(ErrorCode.UNAUTHORIZED, "账号或密码错误");
-        }
-        if (user.getStatus() == UserStatus.DISABLED) {
-            throw new ApiException(ErrorCode.FORBIDDEN, "账号已被禁用");
-        }
-
-        if (hasPassword) {
+        UserEntity user;
+        if (hasCode) {
+            // 验证码登录仅支持邮箱
+            String email = normalizeEmail(account);
+            user = userMapper.selectByEmail(email);
+            if (user == null) {
+                throw new ApiException(ErrorCode.UNAUTHORIZED, "邮箱未注册");
+            }
+            verificationCodeService.verifyAndConsume(email, VerificationCodeService.Scene.LOGIN.value(), request.verificationCode().trim());
+        } else {
+            user = findUserByIdentifier(account);
+            if (user == null) {
+                throw new ApiException(ErrorCode.UNAUTHORIZED, "账号或密码错误");
+            }
             String rawPassword = requireText(request.password(), 72, "密码不能为空", "密码长度不能超过72");
             if (!passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
                 throw new ApiException(ErrorCode.UNAUTHORIZED, "账号或密码错误");
             }
-        } else {
-            // 验证码登录：校验并消费
-            verificationCodeService.verifyAndConsume(account, VerificationCodeService.Scene.LOGIN.value(), request.verificationCode().trim());
+        }
+
+        if (user.getStatus() == UserStatus.DISABLED) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "账号已被禁用");
         }
 
         String accessToken = tokenService.createAccessToken(user, authProperties.accessTokenTtl());
@@ -101,24 +107,28 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public RegisterResponse register(RegisterRequest request) {
-        String account = normalizeAccount(requireText(request.account(), 128, "账号不能为空", "账号长度不能超过128"));
+        String username = requireText(request.username(), 64, "用户名不能为空", "用户名长度不能超过64");
+        if (!username.matches("^[a-zA-Z0-9]+$")) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "用户名只能包含字母或数字");
+        }
+        String email = normalizeEmail(requireText(request.email(), 128, "邮箱不能为空", "邮箱长度不能超过128"));
         String password = requireText(request.password(), 72, "密码不能为空", "密码长度不能超过72");
         String nickname = requireText(request.nickname(), 64, "昵称不能为空", "昵称长度不能超过64");
-        // 注册：邮箱必须验码；用户名（无@）无需验证码
-        if (account.contains("@")) {
-            verificationCodeService.verifyAndConsume(account, VerificationCodeService.Scene.REGISTER.value(), request.verificationCode());
-        } else {
-            if (!account.matches("^[a-zA-Z0-9]+$")) {
-                throw new ApiException(ErrorCode.BAD_REQUEST, "用户名只能包含字母或数字");
-            }
+
+        // 邮箱注册必须验证码
+        verificationCodeService.verifyAndConsume(email, VerificationCodeService.Scene.REGISTER.value(), request.verificationCode());
+
+        if (userMapper.selectByUsername(username) != null) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "用户名已被占用");
         }
-        if (userMapper.selectByAccount(account) != null) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "账号已存在");
+        if (userMapper.selectByEmail(email) != null) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "该邮箱已注册");
         }
 
         UserEntity user = new UserEntity();
         user.setId(generateUserId());
-        user.setAccount(account);
+        user.setUsername(username);
+        user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setNickname(nickname.trim());
         user.setAvatarUrl("");
@@ -185,11 +195,11 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void resetPassword(ResetPasswordRequest request) {
-        String account = normalizeAccount(requireText(request.account(), 128, "账号不能为空", "账号长度不能超过128"));
+        String email = normalizeEmail(requireText(request.effectiveEmail(), 128, "邮箱不能为空", "邮箱长度不能超过128"));
         String newPassword = requireText(request.newPassword(), 72, "新密码不能为空", "新密码长度不能超过72");
-        verificationCodeService.verifyAndConsume(account, VerificationCodeService.Scene.RESET.value(), request.verificationCode());
+        verificationCodeService.verifyAndConsume(email, VerificationCodeService.Scene.RESET.value(), request.verificationCode());
 
-        UserEntity user = userMapper.selectByAccount(account);
+        UserEntity user = userMapper.selectByEmail(email);
         if (user == null) {
             throw new ApiException(ErrorCode.NOT_FOUND, "账号不存在");
         }
@@ -215,8 +225,21 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
-    private String normalizeAccount(String account) {
-        return account == null ? null : account.trim().toLowerCase(Locale.ROOT);
+    /** 含 @ 按邮箱查，否则按用户名查。 */
+    private UserEntity findUserByIdentifier(String identifier) {
+        String trimmed = identifier.trim();
+        if (trimmed.contains("@")) {
+            return userMapper.selectByEmail(trimmed.toLowerCase(Locale.ROOT));
+        }
+        return userMapper.selectByUsername(trimmed);
+    }
+
+    private String normalizeEmail(String email) {
+        String trimmed = email.trim().toLowerCase(Locale.ROOT);
+        if (!trimmed.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "邮箱格式不正确");
+        }
+        return trimmed;
     }
 
     private String requireText(String value, int maxLength, String blankMessage, String tooLongMessage) {

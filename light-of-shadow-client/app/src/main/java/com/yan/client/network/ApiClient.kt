@@ -124,9 +124,10 @@ object ApiClient {
      * Create a new user account
      */
     @Throws(Exception::class)
-    fun register(account: String, password: String, nickname: String? = null, verificationCode: String = ""): ApiResponse {
+    fun register(username: String, email: String, password: String, nickname: String? = null, verificationCode: String = ""): ApiResponse {
         val body = JSONObject().apply {
-            put("account", account)
+            put("username", username)
+            put("email", email)
             put("password", password)
             if (!nickname.isNullOrBlank()) put("nickname", nickname)
             put("verificationCode", verificationCode)
@@ -166,9 +167,9 @@ object ApiClient {
      * Reset password with verification code
      */
     @Throws(Exception::class)
-    fun resetPassword(account: String, verificationCode: String, newPassword: String): ApiResponse {
+    fun resetPassword(email: String, verificationCode: String, newPassword: String): ApiResponse {
         val body = JSONObject().apply {
-            put("account", account)
+            put("email", email)
             put("verificationCode", verificationCode)
             put("newPassword", newPassword)
         }

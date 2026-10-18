@@ -67,7 +67,8 @@ fun RegisterScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    var account by rememberSaveable { mutableStateOf("") }
+    var username by rememberSaveable { mutableStateOf("") }
+    var email by rememberSaveable { mutableStateOf("") }
     var nickname by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var confirmPassword by rememberSaveable { mutableStateOf("") }
@@ -100,10 +101,16 @@ fun RegisterScreen(
                 AuthCard {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         AuthInput(
+                            label = stringResource(R.string.username_label),
+                            value = username,
+                            placeholder = stringResource(R.string.username_placeholder),
+                            onValueChange = { username = it }
+                        )
+                        AuthInput(
                             label = stringResource(R.string.email_label),
-                            value = account,
+                            value = email,
                             placeholder = stringResource(R.string.email_placeholder),
-                            onValueChange = { account = it },
+                            onValueChange = { email = it },
                             keyboardType = KeyboardType.Email
                         )
                         AuthInput(
@@ -144,15 +151,11 @@ fun RegisterScreen(
                             Button(
                                 onClick = {
                                     when {
-                                        account.isBlank() -> {
-                                            scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.account_required_hint)) }
+                                        email.isBlank() -> {
+                                            scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.email_required_hint)) }
                                             return@Button
                                         }
-                                        !isEmailAccount(account) -> {
-                                            scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.email_only_code_hint)) }
-                                            return@Button
-                                        }
-                                        !isValidEmail(account) -> {
+                                        !isValidEmail(email) -> {
                                             scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.email_invalid_hint)) }
                                             return@Button
                                         }
@@ -160,7 +163,7 @@ fun RegisterScreen(
                                     scope.launch {
                                         try {
                                             val resp = withContext(Dispatchers.IO) {
-                                                ApiClient.sendCode(account.trim(), "register")
+                                                ApiClient.sendCode(email.trim(), "register")
                                             }
                                             if (resp.code == 0) {
                                                 snackbarHostState.showSnackbar(context.getString(R.string.code_sent_success))
@@ -181,25 +184,25 @@ fun RegisterScreen(
                         Button(
                             onClick = {
                                 when {
-                                    account.isBlank() || nickname.isBlank() || password.isBlank() || confirmPassword.isBlank() -> {
+                                    username.isBlank() || email.isBlank() || nickname.isBlank() || password.isBlank() || confirmPassword.isBlank() -> {
                                         scope.launch {
                                             snackbarHostState.showSnackbar(context.getString(R.string.empty_register_fields_hint))
                                         }
                                     }
 
-                                    isEmailAccount(account) && !isValidEmail(account) -> {
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar(context.getString(R.string.email_invalid_hint))
-                                        }
-                                    }
-
-                                    !isEmailAccount(account) && !isUsername(account) -> {
+                                    !isUsername(username) -> {
                                         scope.launch {
                                             snackbarHostState.showSnackbar(context.getString(R.string.username_invalid_hint))
                                         }
                                     }
 
-                                    isEmailAccount(account) && verificationCode.isBlank() -> {
+                                    !isValidEmail(email) -> {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(context.getString(R.string.email_invalid_hint))
+                                        }
+                                    }
+
+                                    verificationCode.isBlank() -> {
                                         scope.launch {
                                             snackbarHostState.showSnackbar(context.getString(R.string.register_need_code_hint))
                                         }
@@ -216,7 +219,7 @@ fun RegisterScreen(
                                         scope.launch {
                                             try {
                                                 val resp = withContext(Dispatchers.IO) {
-                                                    ApiClient.register(account.trim(), password, nickname.trim(), verificationCode.trim())
+                                                    ApiClient.register(username.trim(), email.trim(), password, nickname.trim(), verificationCode.trim())
                                                 }
                                                 if (resp.code == 0) {
                                                     Toast.makeText(context, context.getString(R.string.register_success), Toast.LENGTH_SHORT).show()

@@ -5,7 +5,8 @@
 
     <resultMap id="UserResultMap" type="org.yan.lightofshadowbackend.entity.UserEntity">
         <id column="id" property="id"/>
-        <result column="account" property="account"/>
+        <result column="username" property="username"/>
+        <result column="email" property="email"/>
         <result column="password_hash" property="passwordHash"/>
         <result column="nickname" property="nickname"/>
         <result column="avatar_url" property="avatarUrl"/>
@@ -15,23 +16,30 @@
         <result column="updated_at" property="updatedAt"/>
     </resultMap>
 
-    <select id="selectByAccount" resultMap="UserResultMap">
-        SELECT id, account, password_hash, nickname, avatar_url, status, role, created_at, updated_at
+    <select id="selectByUsername" resultMap="UserResultMap">
+        SELECT id, username, email, password_hash, nickname, avatar_url, status, role, created_at, updated_at
         FROM sys_user
-        WHERE LOWER(account) = LOWER(#{account})
+        WHERE username = #{username}
+        LIMIT 1
+    </select>
+
+    <select id="selectByEmail" resultMap="UserResultMap">
+        SELECT id, username, email, password_hash, nickname, avatar_url, status, role, created_at, updated_at
+        FROM sys_user
+        WHERE LOWER(email) = LOWER(#{email})
         LIMIT 1
     </select>
 
     <select id="selectById" resultMap="UserResultMap">
-        SELECT id, account, password_hash, nickname, avatar_url, status, role, created_at, updated_at
+        SELECT id, username, email, password_hash, nickname, avatar_url, status, role, created_at, updated_at
         FROM sys_user
         WHERE id = #{id}
         LIMIT 1
     </select>
 
     <insert id="insert" parameterType="org.yan.lightofshadowbackend.entity.UserEntity">
-        INSERT INTO sys_user (id, account, password_hash, nickname, avatar_url, status, role, created_at, updated_at)
-        VALUES (#{id}, #{account}, #{passwordHash}, #{nickname}, #{avatarUrl}, #{status}, #{role}, #{createdAt}, #{updatedAt})
+        INSERT INTO sys_user (id, username, email, password_hash, nickname, avatar_url, status, role, created_at, updated_at)
+        VALUES (#{id}, #{username}, #{email}, #{passwordHash}, #{nickname}, #{avatarUrl}, #{status}, #{role}, #{createdAt}, #{updatedAt})
     </insert>
 
     <update id="update" parameterType="org.yan.lightofshadowbackend.entity.UserEntity">
@@ -45,4 +53,3 @@
         WHERE id = #{id}
     </update>
 </mapper>
-

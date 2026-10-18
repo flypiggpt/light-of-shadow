@@ -5,7 +5,9 @@ import org.yan.lightofshadowbackend.entity.UserEntity;
 
 public interface UserMapper {
 
-    UserEntity selectByAccount(@Param("account") String account);
+    UserEntity selectByUsername(@Param("username") String username);
+
+    UserEntity selectByEmail(@Param("email") String email);
 
     UserEntity selectById(@Param("id") String id);
 
@@ -13,4 +15,3 @@ public interface UserMapper {
 
     int update(UserEntity user);
 }
-

@@ -21,16 +21,17 @@ Base URL: `http://<host>:8080/api`
 
 `POST /api/auth/login`
 
-**方式 A：密码登录**
+**方式 A：密码登录**（`account` 可为用户名或邮箱）
 
 ```json
-{ "account": "user@example.com", "password": "password123" }
+{ "account": "alice", "password": "password123" }
+{ "account": "alice@example.com", "password": "password123" }
 ```
 
-**方式 B：验证码登录**
+**方式 B：验证码登录**（仅邮箱）
 
 ```json
-{ "account": "user@example.com", "verificationCode": "482913" }
+{ "account": "alice@example.com", "verificationCode": "482913" }
 ```
 
 说明：
@@ -65,16 +66,17 @@ Base URL: `http://<host>:8080/api`
 
 ```json
 {
-  "account": "new@example.com",
+  "username": "alice",
+  "email": "alice@example.com",
   "password": "pwd12345",
-  "nickname": "New",
+  "nickname": "Alice",
   "verificationCode": "482913"
 }
 ```
 
 说明：
-- `account` 含 `@` → 按邮箱，**必须** `verificationCode`（scene=`register`）
-- `account` 不含 `@` → 按用户名（仅字母/数字），**无需**验证码，`verificationCode` 可省略
+- `username`：仅字母/数字，全局唯一
+- `email`：合法邮箱，全局唯一；**必须** `verificationCode`（scene=`register`）
 - 密码不限制最少 8 位
 
 成功响应：
@@ -155,7 +157,7 @@ Base URL: `http://<host>:8080/api`
 请求体：
 
 ```json
-{ "account": "user@example.com", "verificationCode": "482913", "newPassword": "newpass123" }
+{ "email": "user@example.com", "verificationCode": "482913", "newPassword": "newpass123" }
 ```
 
 成功响应：
