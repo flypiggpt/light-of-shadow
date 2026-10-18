@@ -6,7 +6,8 @@ USE `light_of_shadow`;
 
 CREATE TABLE IF NOT EXISTS `sys_user` (
   `id` VARCHAR(64) NOT NULL COMMENT '用户ID',
-  `account` VARCHAR(128) NOT NULL COMMENT '登录账号',
+  `username` VARCHAR(64) NOT NULL COMMENT '用户名（字母数字）',
+  `email` VARCHAR(128) NOT NULL COMMENT '邮箱',
   `password_hash` VARCHAR(100) NOT NULL COMMENT 'BCrypt密码哈希',
   `nickname` VARCHAR(64) NOT NULL COMMENT '昵称',
   `avatar_url` VARCHAR(512) NOT NULL DEFAULT '' COMMENT '头像地址',
@@ -14,7 +15,8 @@ CREATE TABLE IF NOT EXISTS `sys_user` (
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_sys_user_account` (`account`),
+  UNIQUE KEY `uk_sys_user_username` (`username`),
+  UNIQUE KEY `uk_sys_user_email` (`email`),
   KEY `idx_sys_user_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='系统用户表';
 
