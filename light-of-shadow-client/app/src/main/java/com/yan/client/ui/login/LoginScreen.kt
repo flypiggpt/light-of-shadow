@@ -241,9 +241,16 @@ fun LoginScreen(
 											}
 										}
 									},
-									modifier = Modifier.padding(top = 20.dp)
+									modifier = Modifier
+										.padding(top = 22.dp)
+										.height(52.dp),
+									shape = RoundedCornerShape(16.dp),
+									colors = ButtonDefaults.buttonColors(
+										containerColor = GoldPrimary.copy(alpha = 0.9f),
+										contentColor = DarkBg
+									)
 								) {
-									Text(stringResource(R.string.send_code_button), style = MaterialTheme.typography.labelMedium)
+									Text(stringResource(R.string.send_code_button), style = MaterialTheme.typography.labelLarge)
 								}
 							}
 						}
@@ -338,13 +345,6 @@ fun LoginScreen(
 					}
 				}
 
-				Text(
-					text = stringResource(R.string.login_tip),
-					textAlign = TextAlign.Center,
-					style = MaterialTheme.typography.bodySmall,
-					color = TextSecondaryGold,
-					modifier = Modifier.fillMaxWidth()
-				)
 			}
 		}
 	}
@@ -431,7 +431,7 @@ private fun NeumorphicTextField(
 	modifier: Modifier = Modifier
 ) {
 	NeumorphicSurface(
-		modifier = Modifier.fillMaxWidth(),
+		modifier = modifier.fillMaxWidth(),
 		shape = RoundedCornerShape(22.dp),
 		contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
 	) {
