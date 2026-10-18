@@ -33,7 +33,10 @@ Base URL: `http://<host>:8080/api`
 { "account": "user@example.com", "verificationCode": "482913" }
 ```
 
-说明：`password` 与 `verificationCode` 只能填一个；验证码 scene 为 `login`。
+说明：
+- `account` 可为**用户名**或**邮箱**（含 `@` 按邮箱）
+- `password` 与 `verificationCode` 只能填一个；验证码 scene 为 `login`，**仅邮箱账号**可用
+- 用户名仅限字母/数字
 
 成功响应：
 
@@ -69,7 +72,10 @@ Base URL: `http://<host>:8080/api`
 }
 ```
 
-说明：先调 `/api/auth/code`（scene=`register`）获取验证码；密码长度 ≥ 8；`account` 建议使用邮箱。
+说明：
+- `account` 含 `@` → 按邮箱，**必须** `verificationCode`（scene=`register`）
+- `account` 不含 `@` → 按用户名（仅字母/数字），**无需**验证码，`verificationCode` 可省略
+- 密码不限制最少 8 位
 
 成功响应：
 

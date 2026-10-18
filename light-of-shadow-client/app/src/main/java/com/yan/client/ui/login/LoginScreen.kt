@@ -131,8 +131,8 @@ fun LoginScreen(
 						}
 
 						NeumorphicTextField(
-							label = stringResource(R.string.account_label),
-							placeholder = stringResource(R.string.account_placeholder),
+							label = stringResource(R.string.email_label),
+							placeholder = stringResource(R.string.email_placeholder),
 							value = account,
 							onValueChange = { account = it },
 							keyboardOptions = KeyboardOptions(
@@ -206,11 +206,25 @@ fun LoginScreen(
 								)
 								Button(
 									onClick = {
-										if (account.isBlank()) {
-											scope.launch {
-												snackbarHostState.showSnackbar(context.getString(R.string.code_login_need_email_hint))
+										when {
+											account.isBlank() -> {
+												scope.launch {
+													snackbarHostState.showSnackbar(context.getString(R.string.code_login_need_email_hint))
+												}
+												return@Button
 											}
-											return@Button
+											!isEmailAccount(account) -> {
+												scope.launch {
+													snackbarHostState.showSnackbar(context.getString(R.string.email_only_code_hint))
+												}
+												return@Button
+											}
+											!isValidEmail(account) -> {
+												scope.launch {
+													snackbarHostState.showSnackbar(context.getString(R.string.email_invalid_hint))
+												}
+												return@Button
+											}
 										}
 										scope.launch {
 											try {
@@ -235,7 +249,15 @@ fun LoginScreen(
 						}
 
 						TextButton(
-							onClick = { loginByCode = !loginByCode },
+							onClick = {
+								if (!loginByCode && account.isNotBlank() && !isEmailAccount(account)) {
+									scope.launch {
+										snackbarHostState.showSnackbar(context.getString(R.string.email_only_code_hint))
+									}
+								} else {
+									loginByCode = !loginByCode
+								}
+							},
 							contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
 							modifier = Modifier.fillMaxWidth()
 						) {
@@ -445,6 +467,14 @@ private fun NeumorphicTextField(
 	}
 }
 
+private fun isValidEmail(email: String): Boolean {
+	return android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()
+}
+
+private fun isEmailAccount(account: String): Boolean = account.contains("@")
+private fun isUsername(account: String): Boolean = account.trim().matches(Regex("^[a-zA-Z0-9]+$"))
+
+
 private fun submitLogin(
 	account: String,
 	password: String,
@@ -460,6 +490,18 @@ private fun submitLogin(
 	if (account.isBlank() || (!loginByCode && password.isBlank()) || (loginByCode && verificationCode.isBlank())) {
 		scope.launch {
 			snackbarHostState.showSnackbar(emptyFieldsMessage)
+		}
+		return
+	}
+	if (loginByCode && !isEmailAccount(account)) {
+		scope.launch {
+			snackbarHostState.showSnackbar("验证码仅支持邮箱账号，请使用邮箱")
+		}
+		return
+	}
+	if (!loginByCode && !isEmailAccount(account) && !isUsername(account)) {
+		scope.launch {
+			snackbarHostState.showSnackbar("用户名只能包含字母或数字")
 		}
 		return
 	}

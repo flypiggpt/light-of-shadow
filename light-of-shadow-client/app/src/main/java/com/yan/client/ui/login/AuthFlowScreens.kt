@@ -100,10 +100,11 @@ fun RegisterScreen(
                 AuthCard {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         AuthInput(
-                            label = stringResource(R.string.account_label),
+                            label = stringResource(R.string.email_label),
                             value = account,
-                            placeholder = stringResource(R.string.account_placeholder),
-                            onValueChange = { account = it }
+                            placeholder = stringResource(R.string.email_placeholder),
+                            onValueChange = { account = it },
+                            keyboardType = KeyboardType.Email
                         )
                         AuthInput(
                             label = stringResource(R.string.nickname_label),
@@ -142,9 +143,19 @@ fun RegisterScreen(
                             )
                             Button(
                                 onClick = {
-                                    if (account.isBlank()) {
-                                        scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.account_required_hint)) }
-                                        return@Button
+                                    when {
+                                        account.isBlank() -> {
+                                            scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.account_required_hint)) }
+                                            return@Button
+                                        }
+                                        !isEmailAccount(account) -> {
+                                            scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.email_only_code_hint)) }
+                                            return@Button
+                                        }
+                                        !isValidEmail(account) -> {
+                                            scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.email_invalid_hint)) }
+                                            return@Button
+                                        }
                                     }
                                     scope.launch {
                                         try {
@@ -176,7 +187,19 @@ fun RegisterScreen(
                                         }
                                     }
 
-                                    verificationCode.isBlank() -> {
+                                    isEmailAccount(account) && !isValidEmail(account) -> {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(context.getString(R.string.email_invalid_hint))
+                                        }
+                                    }
+
+                                    !isEmailAccount(account) && !isUsername(account) -> {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(context.getString(R.string.username_invalid_hint))
+                                        }
+                                    }
+
+                                    isEmailAccount(account) && verificationCode.isBlank() -> {
                                         scope.launch {
                                             snackbarHostState.showSnackbar(context.getString(R.string.register_need_code_hint))
                                         }
@@ -284,10 +307,11 @@ fun ForgotPasswordScreen(
                 AuthCard {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         AuthInput(
-                            label = stringResource(R.string.account_label),
+                            label = stringResource(R.string.email_label),
                             value = account,
-                            placeholder = stringResource(R.string.account_placeholder),
-                            onValueChange = { account = it }
+                            placeholder = stringResource(R.string.email_placeholder),
+                            onValueChange = { account = it },
+                            keyboardType = KeyboardType.Email
                         )
 
                         if (step == ForgotStep.SendCode) {
@@ -443,6 +467,17 @@ private fun AuthCard(content: @Composable () -> Unit) {
         content()
     }
 }
+
+private fun isValidEmail(email: String): Boolean {
+    return android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()
+}
+
+private fun isUsername(account: String): Boolean {
+    return account.trim().matches(Regex("^[a-zA-Z0-9]+$"))
+}
+
+private fun isEmailAccount(account: String): Boolean = account.contains("@")
+
 
 @Composable
 private fun AuthInput(
