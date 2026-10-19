@@ -8,6 +8,7 @@ import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import com.yan.client.R
+import com.yan.client.settings.AppSettings
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
@@ -65,6 +66,14 @@ class TtsAlertManager(context: Context) : AutoCloseable {
         }
     }
 
+    @Volatile
+    private var speechRate: Float = AppSettings.speechRate
+
+    fun setSpeechRate(rate: Float) {
+        speechRate = rate.coerceIn(0.6f, 1.4f)
+        runCatching { textToSpeech.setSpeechRate(speechRate) }
+    }
+
     fun isReady(): Boolean = isReady
 
     fun getInitializationError(): String? = initializationError
@@ -118,7 +127,7 @@ class TtsAlertManager(context: Context) : AutoCloseable {
             Log.e(TAG, "Error setting language $selectedLocale, continuing anyway", e)
         }
         
-        engine.setSpeechRate(1.0f)
+        engine.setSpeechRate(speechRate)
         engine.setPitch(1.0f)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             engine.setAudioAttributes(

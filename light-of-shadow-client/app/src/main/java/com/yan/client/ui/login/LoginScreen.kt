@@ -54,6 +54,7 @@ import com.yan.client.R
 import com.yan.client.ui.theme.NeumorphismSurfacePressed
 import com.yan.client.network.ApiClient
 import com.yan.client.network.TokenStore
+import com.yan.client.settings.AppSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -527,6 +528,10 @@ private fun submitLogin(
 					TokenStore.accessToken = resp.data?.let { if (it.has("accessToken") && !it.isNull("accessToken")) it.optString("accessToken") else null }
 					TokenStore.refreshToken = resp.data?.let { if (it.has("refreshToken") && !it.isNull("refreshToken")) it.optString("refreshToken") else null }
 					TokenStore.expiresIn = resp.data?.optLong("expiresIn", 0L) ?: 0L
+					AppSettings.saveLoginProfile(
+						account = account.trim(),
+						nickname = resp.data?.optString("nickname")?.takeIf { it.isNotBlank() }
+					)
 
 					// Ensure onLoginClick runs on main thread to propagate state changes properly
 					withContext(Dispatchers.Main) {
