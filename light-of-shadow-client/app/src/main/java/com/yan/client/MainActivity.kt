@@ -17,6 +17,8 @@ import com.yan.client.ui.login.ForgotPasswordScreen
 import com.yan.client.ui.login.LoginScreen
 import com.yan.client.ui.login.RegisterScreen
 import com.yan.client.ui.main.MainScreen
+import com.yan.client.settings.AppSettings
+import com.yan.client.ui.settings.SettingsScreen
 import com.yan.client.ui.shop.ShopScreen
 import com.yan.client.ui.theme.ClientTheme
 
@@ -26,13 +28,15 @@ private enum class AuthRoute {
     ForgotPassword,
     Main,
     Guide,
-    Shop
+    Shop,
+    Settings
 }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        AppSettings.init(applicationContext)
         setContent {
             ClientTheme(darkTheme = false, dynamicColor = false) {
                 var route by remember { mutableStateOf(AuthRoute.Login) }
@@ -81,13 +85,29 @@ class MainActivity : ComponentActivity() {
                         MainScreen(
                             modifier = Modifier.fillMaxSize(),
                             onLogout = {
+                                AppSettings.clearSession()
                                 route = AuthRoute.Login
+                            },
+                            onSettingsClick = {
+                                route = AuthRoute.Settings
                             },
                             onStartGuide = {
                                 route = AuthRoute.Guide
                             },
                             onShopClick = {
                                 route = AuthRoute.Shop
+                            }
+                        )
+                    }
+
+                    AuthRoute.Settings -> {
+                        SettingsScreen(
+                            modifier = Modifier.fillMaxSize(),
+                            onBack = {
+                                route = AuthRoute.Main
+                            },
+                            onLogout = {
+                                route = AuthRoute.Login
                             }
                         )
                     }
