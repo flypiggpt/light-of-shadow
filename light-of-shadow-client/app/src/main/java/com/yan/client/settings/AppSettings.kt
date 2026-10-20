@@ -19,6 +19,12 @@ object AppSettings {
 
     private lateinit var prefs: SharedPreferences
 
+    private val safePrefs: SharedPreferences
+        get() {
+            check(::prefs.isInitialized) { "Call AppSettings.init(context) before use" }
+            return prefs
+        }
+
     fun init(context: Context) {
         if (!::prefs.isInitialized) {
             prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -26,24 +32,24 @@ object AppSettings {
     }
 
     var alertSoundEnabled: Boolean
-        get() = prefs.getBoolean(KEY_ALERT_SOUND, true)
-        set(value) = prefs.edit().putBoolean(KEY_ALERT_SOUND, value).apply()
+        get() = safePrefs.getBoolean(KEY_ALERT_SOUND, true)
+        set(value) = safePrefs.edit().putBoolean(KEY_ALERT_SOUND, value).apply()
 
     var ttsEnabled: Boolean
-        get() = prefs.getBoolean(KEY_TTS, true)
-        set(value) = prefs.edit().putBoolean(KEY_TTS, value).apply()
+        get() = safePrefs.getBoolean(KEY_TTS, true)
+        set(value) = safePrefs.edit().putBoolean(KEY_TTS, value).apply()
 
     var speechRate: Float
-        get() = prefs.getFloat(KEY_SPEECH_RATE, 1.0f)
-        set(value) = prefs.edit().putFloat(KEY_SPEECH_RATE, value.coerceIn(0.6f, 1.4f)).apply()
+        get() = safePrefs.getFloat(KEY_SPEECH_RATE, 1.0f)
+        set(value) = safePrefs.edit().putFloat(KEY_SPEECH_RATE, value.coerceIn(0.6f, 1.4f)).apply()
 
     var account: String
-        get() = prefs.getString(KEY_ACCOUNT, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_ACCOUNT, value).apply()
+        get() = safePrefs.getString(KEY_ACCOUNT, "") ?: ""
+        set(value) = safePrefs.edit().putString(KEY_ACCOUNT, value).apply()
 
     var nickname: String
-        get() = prefs.getString(KEY_NICKNAME, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_NICKNAME, value).apply()
+        get() = safePrefs.getString(KEY_NICKNAME, "") ?: ""
+        set(value) = safePrefs.edit().putString(KEY_NICKNAME, value).apply()
 
     fun saveLoginProfile(account: String, nickname: String?) {
         this.account = account

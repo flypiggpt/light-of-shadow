@@ -22,6 +22,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +35,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
+import com.yan.client.audio.TtsAlertManager
 import com.yan.client.settings.AppSettings
 import com.yan.client.ui.theme.DarkGoldBackground
 import com.yan.client.ui.theme.DarkGoldCard
@@ -119,6 +122,31 @@ fun SettingsScreen(
                         AppSettings.speechRate = rate
                     }
                 )
+                val testTts = remember(context) { TtsAlertManager(context) }
+                DisposableEffect(testTts) {
+                    onDispose { testTts.close() }
+                }
+                Button(
+                    onClick = {
+                        testTts.setSpeechRate(AppSettings.speechRate)
+                        val ok = testTts.speakNow("语音测试成功")
+                        val msg = when {
+                            ok -> "TTS 已触发播报"
+                            testTts.getInitializationError() != null -> testTts.getInitializationError()!!
+                            testTts.getLastSpeakError() != null -> testTts.getLastSpeakError()!!
+                            else -> "TTS 未就绪，请稍候"
+                        }
+                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = DarkGoldCard,
+                        contentColor = DarkGoldHighlight
+                    )
+                ) {
+                    Text("测试语音播报")
+                }
             }
 
             SettingsGroup(title = "账号") {
