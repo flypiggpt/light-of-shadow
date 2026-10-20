@@ -27,8 +27,11 @@ class TtsAlertManager(context: Context) : AutoCloseable {
     @Volatile private var lastSpeakError: String? = null
     @Volatile private var pendingSpeech: PendingSpeech? = null
     private lateinit var textToSpeech: TextToSpeech
+    @Volatile
+    private var speechRate: Float = 1.0f
 
     init {
+        speechRate = runCatching { AppSettings.speechRate }.getOrDefault(1.0f)
         textToSpeech = TextToSpeech(appContext) { status ->
             // 对 Google TTS 等第三方引擎更宽容：只要不是明确的错误码，就尝试配置
             val shouldConfigure = status == TextToSpeech.SUCCESS || 
@@ -65,9 +68,6 @@ class TtsAlertManager(context: Context) : AutoCloseable {
             }
         }
     }
-
-    @Volatile
-    private var speechRate: Float = AppSettings.speechRate
 
     fun setSpeechRate(rate: Float) {
         speechRate = rate.coerceIn(0.6f, 1.4f)

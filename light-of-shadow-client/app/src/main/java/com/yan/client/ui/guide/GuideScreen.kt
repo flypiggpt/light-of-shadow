@@ -53,6 +53,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.yan.client.R
 import com.yan.client.audio.ObstacleAlertPlayer
+import com.yan.client.audio.TtsAlertManager
+import com.yan.client.settings.AppSettings
 import com.yan.client.ui.theme.NeumorphismBackground
 import com.yan.client.ui.theme.NeumorphismPrimary
 import com.yan.client.ui.theme.NeumorphismSurfacePressed
@@ -78,12 +80,17 @@ fun GuideScreen(
     }
     val detector = remember(context) { ObstacleDetector(context) }
     val obstacleAlertPlayer = remember(context) { ObstacleAlertPlayer(context) }
+    val ttsAlertManager = remember(context) { TtsAlertManager(context) }
+    DisposableEffect(ttsAlertManager) {
+        ttsAlertManager.setSpeechRate(AppSettings.speechRate)
+        onDispose { ttsAlertManager.close() }
+    }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
     var latestAlert by rememberSaveable { mutableStateOf("正在初始化导盲识别…") }
     var latestDetections by remember { mutableStateOf<List<ObstacleDetection>>(emptyList()) }
-    var soundEnabled by rememberSaveable { mutableStateOf(true) }
+    var soundEnabled by rememberSaveable { mutableStateOf(AppSettings.alertSoundEnabled) }
     var hasPermission by rememberSaveable {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
@@ -118,12 +125,26 @@ fun GuideScreen(
         val primary = latestDetections.firstOrNull() ?: return@LaunchedEffect
         if (!primary.isObstacle) return@LaunchedEffect
 
-        // 限流为每 3000ms 最多一次播放提示音
-        if (obstacleAlertPlayer.playIfAllowed(3000L)) {
-            // 播放成功后不额外提示，避免打断连续识别
-        } else if (obstacleAlertPlayer.getInitializationError() != null) {
-            scope.launch {
-                snackbarHostState.showSnackbar(obstacleAlertPlayer.getInitializationError() ?: context.getString(R.string.alert_sound_missing_hint))
+        // 提示音（设置可关）
+        if (AppSettings.alertSoundEnabled) {
+            if (!obstacleAlertPlayer.playIfAllowed(3000L)) {
+                obstacleAlertPlayer.getInitializationError()?.let { err ->
+                    scope.launch { snackbarHostState.showSnackbar(err) }
+                }
+            }
+        }
+
+        // 语音播报障碍名（设置可关）
+        if (AppSettings.ttsEnabled) {
+            val speechText = primary.alertText.ifBlank { "前方有${primary.displayLabel}" }
+            ttsAlertManager.speakIfAllowed(
+                key = "obstacle",
+                text = speechText,
+                cooldownMs = 3000L,
+                globalCooldownMs = 1500L
+            )
+            ttsAlertManager.getLastSpeakError()?.let { err ->
+                scope.launch { snackbarHostState.showSnackbar(err) }
             }
         }
     }
@@ -296,6 +317,7 @@ fun GuideScreen(
                                     checked = soundEnabled,
                                     onCheckedChange = {
                                         soundEnabled = it
+                                        AppSettings.alertSoundEnabled = it
                                         obstacleAlertPlayer.setSoundEnabled(it)
                                     },
                                     colors = SwitchDefaults.colors(
