@@ -2,6 +2,7 @@ package com.yan.client
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
@@ -48,6 +49,15 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(
                         if (AppSettings.restoreSession()) AuthRoute.Main else AuthRoute.Login
                     )
+                }
+
+                // 系统返回/侧滑返回：按层级往回，而不是退出 App
+                BackHandler(enabled = route != AuthRoute.Main && route != AuthRoute.Login) {
+                    route = when (route) {
+                        AuthRoute.Register, AuthRoute.ForgotPassword -> AuthRoute.Login
+                        AuthRoute.Guide, AuthRoute.Shop, AuthRoute.Settings -> AuthRoute.Main
+                        else -> AuthRoute.Main
+                    }
                 }
 
                 when (route) {
