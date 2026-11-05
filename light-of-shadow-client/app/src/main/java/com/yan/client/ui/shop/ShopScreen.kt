@@ -131,6 +131,9 @@ fun ShopScreen(
     var loading by remember { mutableStateOf(false) }
 
     var products by remember { mutableStateOf(emptyList<ShopProduct>()) }
+    var productsPage by remember { mutableStateOf(1) }
+    var productsTotal by remember { mutableStateOf(0L) }
+    var productsLoadingMore by remember { mutableStateOf(false) }
     var cartLines by remember { mutableStateOf(emptyList<CartLine>()) }
     var orders by remember { mutableStateOf(emptyList<ShopOrder>()) }
     var guideSessionId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -149,10 +152,12 @@ fun ShopScreen(
             loading = true
             try {
                 val resp = withContext(Dispatchers.IO) {
-                    ApiClient.getShopProducts(keyword = keyword.ifBlank { null })
+                    ApiClient.getShopProducts(keyword = keyword.ifBlank { null }, page = 1, size = 20)
                 }
                 if (resp.code == 0) {
                     products = parseProducts(resp.data)
+                    productsPage = 1
+                    productsTotal = resp.data?.optLong("total", products.size.toLong()) ?: products.size.toLong()
                 } else {
                     val errMsg = "加载商品失败: code=${resp.code}, message=${resp.message ?: "N/A"}"
                     android.util.Log.e("ShopScreen", errMsg)
@@ -163,6 +168,30 @@ fun ShopScreen(
                 showMessage("加载商品失败：${e.message ?: "未知错误"}")
             } finally {
                 loading = false
+            }
+        }
+    }
+
+    fun loadMoreProducts() {
+        if (productsLoadingMore || loading) return
+        if (products.size.toLong() >= productsTotal) return
+        scope.launch {
+            productsLoadingMore = true
+            try {
+                val nextPage = productsPage + 1
+                val resp = withContext(Dispatchers.IO) {
+                    ApiClient.getShopProducts(keyword = keyword.ifBlank { null }, page = nextPage, size = 20)
+                }
+                if (resp.code == 0) {
+                    val more = parseProducts(resp.data)
+                    products = products + more.filter { new -> products.none { it.id == new.id } }
+                    productsPage = nextPage
+                    productsTotal = resp.data?.optLong("total", productsTotal) ?: productsTotal
+                }
+            } catch (e: Exception) {
+                showMessage("加载更多失败：${e.message ?: "未知错误"}")
+            } finally {
+                productsLoadingMore = false
             }
         }
     }
@@ -475,6 +504,9 @@ fun ShopScreen(
                 ShopTab.Products -> {
                     ProductList(
                         products = products,
+                        total = productsTotal,
+                        loadingMore = productsLoadingMore,
+                        onLoadMore = { loadMoreProducts() },
                         loading = loading,
                         onRefresh = { refreshProducts() },
                         onAddCart = { addToCart(it) }
@@ -631,6 +663,9 @@ private fun TabBar(
 @Composable
 private fun ProductList(
     products: List<ShopProduct>,
+    total: Long = 0L,
+    loadingMore: Boolean = false,
+    onLoadMore: () -> Unit = {},
     loading: Boolean,
     onRefresh: () -> Unit,
     onAddCart: (ShopProduct) -> Unit
@@ -682,6 +717,30 @@ private fun ProductList(
                             )
                         }
                         ActionButton(text = stringResource(R.string.shop_add_cart), onClick = { onAddCart(product) })
+                    }
+                }
+            }
+        }
+
+        if (total > products.size) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (loadingMore) {
+                        Text(
+                            text = stringResource(R.string.shop_loading),
+                            color = DarkGoldTextSecondary,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    } else {
+                        ActionButton(
+                            text = "加载更多（${products.size}/$total）",
+                            onClick = onLoadMore
+                        )
                     }
                 }
             }
