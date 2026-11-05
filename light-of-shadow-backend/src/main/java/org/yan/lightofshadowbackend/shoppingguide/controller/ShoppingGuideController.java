@@ -41,10 +41,9 @@ public class ShoppingGuideController {
     /** 最近一次会话（含消息），App 重启后恢复历史用 */
     @GetMapping("/sessions")
     public ApiResponse<Map<String, Object>> latestSession(
-            @RequestAttribute(value = "userId", required = false) String userId,
-            HttpServletRequest request) {
-        String uid = authSupport.requireUserId(userId, request);
-        return ApiResponse.success(shoppingGuideService.latestSession(uid));
+            @RequestHeader(value = "Authorization", required = false) String auth) {
+        String userId = authSupport.resolveUserId(auth);
+        return ApiResponse.success(shoppingGuideService.latestSession(userId));
     }
 
     @GetMapping("/sessions/{sessionId}")
