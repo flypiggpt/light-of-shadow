@@ -81,3 +81,7 @@ Query 参数：
 ```json
 { "code": 0, "message": "ok", "data": { "id": "p_1001" } }
 ```
+
+## 相关
+
+- 图片上传（预签名直传）：见 [merchant_image_api.md](merchant_image_api.md)

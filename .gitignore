@@ -57,3 +57,7 @@ externalNativeBuild/
 
 # --- MiMoCode local ---
 .mimocode/
+
+# Vue merchant web
+merchant-web/node_modules/
+merchant-web/dist/

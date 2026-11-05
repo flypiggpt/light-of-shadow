@@ -44,6 +44,15 @@ app:
     access-token-ttl: 2h
     refresh-token-ttl: 30d
   storage:
+    object:
+      type: minio
+      minio:
+        endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
+        access-key: ${MINIO_ACCESS_KEY:}
+        secret-key: ${MINIO_SECRET_KEY:}
+        bucket: ${MINIO_BUCKET:product-images}
+        public-base-url: ${MINIO_PUBLIC_URL:http://132.232.75.62:9000}
+        presign-ttl-seconds: 900
     local:
       base-dir: uploads
       base-url: /media

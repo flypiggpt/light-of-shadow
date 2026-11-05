@@ -8,6 +8,7 @@
 |---|---|
 | [api/auth_api.md](api/auth_api.md) | 登录 / 注册 / 令牌刷新 |
 | [api/merchant_api.md](api/merchant_api.md) | 商家侧商品管理 |
+| [api/merchant_image_api.md](api/merchant_image_api.md) | 商品图预签名直传（MinIO） |
 | [api/shop_api.md](api/shop_api.md) | 买家侧商城：商品、购物车、订单 |
 | [api/shoppingguide_api.md](api/shoppingguide_api.md) | AI 导购会话与推荐 |
 
