@@ -22,7 +22,7 @@
 - 客户端 `TokenStore.clear()`、`ApiClient.logout()`
 - `docs/api/auth_api.md`
 
-### 2. 导购会话持久化（1 天）
+### 2. 导购会话持久化（1 天）✅ 已完成（消息落库；状态恢复留给 LangGraph）
 
 **现状**：`ConcurrentHashMap` 内存存会话，重启丢。后面 LangGraph checkpoint 也需要落库，这是前置。
 

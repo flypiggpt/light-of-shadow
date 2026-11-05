@@ -7,7 +7,7 @@ import org.mybatis.spring.annotation.MapperScan;
 
 @SpringBootApplication
 @ConfigurationPropertiesScan
-@MapperScan({"org.yan.lightofshadowbackend.auth.mapper", "org.yan.lightofshadowbackend.shop.mapper"})
+@MapperScan({"org.yan.lightofshadowbackend.auth.mapper", "org.yan.lightofshadowbackend.shop.mapper", "org.yan.lightofshadowbackend.shoppingguide.mapper"})
 public class LightOfShadowBackendApplication {
 
     public static void main(String[] args) {

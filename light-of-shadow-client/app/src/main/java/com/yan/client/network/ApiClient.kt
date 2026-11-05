@@ -293,6 +293,23 @@ object ApiClient {
     // ===================== Shopping Guide Endpoints =====================
 
     /**
+     * GET /api/shoppingguide/sessions
+     * 最近一次会话（App 重启恢复历史）
+     */
+    @Throws(Exception::class)
+    fun getLatestGuideSession(): ApiResponse {
+        return get("/shoppingguide/sessions", getAuthHeaders())
+    }
+
+    /**
+     * GET /api/shoppingguide/sessions/{sessionId}/messages
+     */
+    @Throws(Exception::class)
+    fun getGuideMessages(sessionId: String, pageSize: Int = 100): ApiResponse {
+        return get("/shoppingguide/sessions/$sessionId/messages?page=1&size=$pageSize", getAuthHeaders())
+    }
+
+    /**
      * POST /api/shoppingguide/sessions
      * Create a shopping guide session.
      */
