@@ -23,6 +23,9 @@ import org.yan.lightofshadowbackend.config.DeepSeekProperties;
 import org.yan.lightofshadowbackend.exception.ApiException;
 import org.yan.lightofshadowbackend.shop.entity.ProductEntity;
 import org.yan.lightofshadowbackend.shop.mapper.ProductMapper;
+import org.yan.lightofshadowbackend.shoppingguide.entity.MessageEntity;
+import org.yan.lightofshadowbackend.shoppingguide.entity.SessionEntity;
+import org.yan.lightofshadowbackend.shoppingguide.mapper.ShoppingGuideMapper;
 import org.yan.lightofshadowbackend.shop.service.ShopAuthSupport;
 import org.yan.lightofshadowbackend.shoppingguide.dto.ShoppingGuideCompareRequest;
 import org.yan.lightofshadowbackend.shoppingguide.dto.ShoppingGuideFeedbackRequest;
@@ -37,6 +40,7 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
     private static final int DEFAULT_RECOMMENDATION_LIMIT = 10;
 
     private final ProductMapper productMapper;
+    private final ShoppingGuideMapper shoppingGuideMapper;
     private final ShopAuthSupport authSupport;
     private final DeepSeekProperties deepSeekProperties;
     private final ObjectMapper objectMapper;
@@ -45,10 +49,12 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
     private final Map<String, SessionState> sessions = new ConcurrentHashMap<>();
 
     public ShoppingGuideServiceImpl(ProductMapper productMapper, 
+                                   ShoppingGuideMapper shoppingGuideMapper,
                                    ShopAuthSupport authSupport, 
                                    DeepSeekProperties deepSeekProperties,
                                    ObjectMapper objectMapper) {
         this.productMapper = productMapper;
+        this.shoppingGuideMapper = shoppingGuideMapper;
         this.authSupport = authSupport;
         this.deepSeekProperties = deepSeekProperties;
         this.objectMapper = objectMapper;
@@ -73,6 +79,18 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
         sessions.put(sessionId, session);
 
         session.lastIntent = buildIntent("welcome", 1.0, Map.of("entry", session.entry, "source", session.source, "locale", session.locale));
+
+        SessionEntity entity = new SessionEntity();
+        entity.setId(session.sessionId);
+        entity.setUserId(session.userId);
+        entity.setEntry(session.entry);
+        entity.setSource(session.source);
+        entity.setLocale(session.locale);
+        entity.setStatus(session.status);
+        entity.setWelcomeMessage(session.welcomeMessage);
+        entity.setCreatedAt(session.createdAt);
+        entity.setUpdatedAt(session.updatedAt);
+        shoppingGuideMapper.insertSession(entity);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("session", sessionSummary(session));
@@ -99,6 +117,7 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
         Instant now = Instant.now();
         MessageRecord userMessage = new MessageRecord(generateId("msg_"), sessionId, "user", "text", request.message().trim(), now);
         session.messages.add(userMessage);
+        persistMessage(userMessage);
         session.lastUserMessage = request.message().trim();
         session.updatedAt = now;
 
@@ -123,6 +142,7 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
 
         MessageRecord assistantMessage = new MessageRecord(generateId("msg_"), sessionId, "assistant", "text", llmResult.content(), Instant.now());
         session.messages.add(assistantMessage);
+        persistMessage(assistantMessage);
 
         // Actions are also strictly driven by LLM or a minimal set if LLM doesn't provide them
         List<Map<String, Object>> actions = llmResult.actions();
@@ -266,6 +286,7 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
     @Override
     public Map<String, Object> closeSession(String userId, String sessionId) {
         SessionState session = requireSession(userId, sessionId, false);
+        shoppingGuideMapper.updateSessionStatus(sessionId, "ENDED", Instant.now());
         session.status = "ENDED";
         session.updatedAt = Instant.now();
         Map<String, Object> result = new LinkedHashMap<>();
@@ -351,7 +372,26 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
     private SessionState requireSession(String userId, String sessionId, boolean activeOnly) {
         SessionState session = sessions.get(sessionId);
         if (session == null) {
-            throw new ApiException(ErrorCode.SESSION_NOT_FOUND, "会话不存在");
+            // 内存无、DB 有：恢复会话元数据与消息日志（Agent 状态不在此恢复，留给 LangGraph）
+            SessionEntity entity = shoppingGuideMapper.selectSessionById(sessionId);
+            if (entity == null) {
+                throw new ApiException(ErrorCode.SESSION_NOT_FOUND, "会话不存在");
+            }
+            session = new SessionState();
+            session.sessionId = entity.getId();
+            session.userId = entity.getUserId();
+            session.entry = entity.getEntry();
+            session.source = entity.getSource();
+            session.locale = entity.getLocale();
+            session.status = entity.getStatus();
+            session.welcomeMessage = entity.getWelcomeMessage();
+            session.createdAt = entity.getCreatedAt();
+            session.updatedAt = entity.getUpdatedAt();
+            for (MessageEntity m : shoppingGuideMapper.selectMessagesBySession(sessionId)) {
+                session.messages.add(new MessageRecord(
+                        m.getId(), m.getSessionId(), m.getRole(), m.getContentType(), m.getContent(), m.getCreatedAt()));
+            }
+            sessions.put(sessionId, session);
         }
         if (!session.userId.equals(userId)) {
             throw new ApiException(ErrorCode.FORBIDDEN, "无权访问该会话");
@@ -360,6 +400,17 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
             throw new ApiException(ErrorCode.SESSION_ENDED, "会话已结束");
         }
         return session;
+    }
+
+    private void persistMessage(MessageRecord record) {
+        MessageEntity entity = new MessageEntity();
+        entity.setId(record.messageId());
+        entity.setSessionId(record.sessionId());
+        entity.setRole(record.role());
+        entity.setContentType(record.contentType());
+        entity.setContent(record.content());
+        entity.setCreatedAt(record.createdAt());
+        shoppingGuideMapper.insertMessage(entity);
     }
 
     private ProductEntity requireProduct(String productId) {
