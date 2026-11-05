@@ -95,10 +95,10 @@ Base URL: `http://<host>:8080/api`
 { "refreshToken": "def50200..." }
 ```
 
-成功响应：
+成功响应（**refreshToken 轮换**：旧的作废，必须保存新的）：
 
 ```json
-{ "code": 0, "message": "ok", "data": { "accessToken": "ey...", "expiresIn": 7200 } }
+{ "code": 0, "message": "ok", "data": { "accessToken": "ey...", "refreshToken": "new...", "expiresIn": 7200, "refreshExpiresIn": 2592000 } }
 ```
 
 ## 4. 发送验证码
@@ -133,7 +133,7 @@ Base URL: `http://<host>:8080/api`
 - 频控：同邮箱同场景 60s 内不可重发；日上限默认 10 次；错误尝试默认 5 次后作废
 - **注册校验**：`scene=login/reset` 仅已注册邮箱可发码（未注册返回 404）；`scene=register` 仅未注册邮箱可发码（已注册返回 400）
 
-## 5. 忘记密码（触发发码）
+## 6. 忘记密码（触发发码）
 
 `POST /api/auth/password/forgot`
 
@@ -151,7 +151,7 @@ Base URL: `http://<host>:8080/api`
 
 成功响应：同「发送验证码」（内部 scene 固定为 `reset`）。
 
-## 6. 重置密码
+## 7. 重置密码
 
 `POST /api/auth/password/reset`
 

@@ -9,5 +9,8 @@ public interface RefreshTokenMapper {
     RefreshTokenEntity selectActiveByTokenHash(@Param("tokenHash") String tokenHash, @Param("now") Instant now);
 
     int insert(RefreshTokenEntity token);
-}
 
+    int revokeById(@Param("id") Long id, @Param("now") Instant now);
+
+    int revokeAllByUserId(@Param("userId") String userId, @Param("now") Instant now);
+}

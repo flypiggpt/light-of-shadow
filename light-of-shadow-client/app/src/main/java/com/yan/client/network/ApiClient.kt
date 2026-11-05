@@ -177,6 +177,18 @@ object ApiClient {
     }
 
     /**
+     * POST /api/auth/logout
+     * 作废当前 refreshToken
+     */
+    @Throws(Exception::class)
+    fun logout(): ApiResponse {
+        val body = JSONObject().apply {
+            put("refreshToken", TokenStore.refreshToken ?: "")
+        }
+        return request("POST", "/auth/logout", body)
+    }
+
+    /**
      * POST /api/auth/refresh
      * Refresh access token using refresh token
      */

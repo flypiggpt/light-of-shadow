@@ -37,7 +37,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
 import com.yan.client.audio.TtsAlertManager
+import com.yan.client.network.ApiClient
+import com.yan.client.network.TokenStore
 import com.yan.client.settings.AppSettings
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.yan.client.ui.theme.DarkGoldBackground
 import com.yan.client.ui.theme.DarkGoldCard
 import com.yan.client.ui.theme.DarkGoldHighlight
@@ -150,6 +155,12 @@ fun SettingsScreen(
                 )
                 Button(
                     onClick = {
+                        val rt = TokenStore.refreshToken
+                        if (!rt.isNullOrBlank()) {
+                            CoroutineScope(Dispatchers.IO).launch {
+                                runCatching { ApiClient.logout() }
+                            }
+                        }
                         AppSettings.clearSession()
                         onLogout()
                     },

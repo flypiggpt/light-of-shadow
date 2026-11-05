@@ -28,5 +28,16 @@
         VALUES (#{userId}, #{tokenHash}, #{expiresAt}, #{revoked}, #{createdAt}, #{updatedAt})
     </insert>
 
+    <update id="revokeById">
+        UPDATE sys_refresh_token
+        SET revoked = 1, updated_at = #{now}
+        WHERE id = #{id} AND revoked = 0
+    </update>
+
+    <update id="revokeAllByUserId">
+        UPDATE sys_refresh_token
+        SET revoked = 1, updated_at = #{now}
+        WHERE user_id = #{userId} AND revoked = 0
+    </update>
 </mapper>
 

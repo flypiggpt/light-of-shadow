@@ -18,6 +18,8 @@ public interface AuthService {
 
     RefreshResponse refresh(RefreshRequest request);
 
+    void logout(RefreshRequest request);
+
     SendCodeResponse sendCode(SendCodeRequest request);
 
     void resetPassword(ResetPasswordRequest request);
