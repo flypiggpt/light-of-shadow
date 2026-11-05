@@ -33,6 +33,7 @@
 | 文档 | 说明 |
 |---|---|
 | [plan.md](plan.md) | 下一阶段计划：技术栈（Java + Python Agent + Redis）与功能对照、里程碑 |
+| [backend-plan.md](backend-plan.md) | 后端收尾计划：4 个洞 + 双服务边界（不含 Spring Cloud） |
 
 ## 协作
 
