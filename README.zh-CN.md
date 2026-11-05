@@ -14,7 +14,8 @@ monorepo——前后端与文档同仓：
 light-of-shadow/
 ├── docs/                        # API / 设计 / 数据库 / 协作指南
 ├── light-of-shadow-backend/     # Spring Boot 3 + MyBatis 后端
-└── light-of-shadow-client/      # Android 客户端（Kotlin + Compose）
+├── light-of-shadow-client/      # Android 客户端（Kotlin + Compose）
+└── light-of-shadow-merchant/    # 商家管理后台（Vue3 + Element Plus）
 ```
 
 - 前后端同仓管理，接口变更与文档更新放在同一次提交里。

@@ -59,5 +59,6 @@ externalNativeBuild/
 .mimocode/
 
 # Vue merchant web
-merchant-web/node_modules/
-merchant-web/dist/
+light-of-shadow-merchant/node_modules/
+light-of-shadow-merchant/dist/
+doc-fetch-resources/

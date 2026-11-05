@@ -53,16 +53,18 @@ public class MinioObjectStorageService implements ObjectStorageService {
         validateContentType(contentType);
         try {
             // 预签名 PUT；大小限制由服务端 complete 阶段与 Nginx/MinIO 配合校验
-            String url = minioClient.getPresignedObjectUrl(
+            String internalUrl = minioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .method(Method.PUT)
                             .bucket(cfg.bucket())
                             .object(objectKey)
                             .expiry(cfg.presignTtlSeconds(), TimeUnit.SECONDS)
                             .build());
+            // 浏览器须走公网入口；签名含 Host，Nginx 反代时还原 Host 即可通过校验
+            String uploadUrl = rewriteToPublicHost(internalUrl);
             String publicUrl = publicUrl(objectKey);
             log.info("presigned upload key={} type={}", objectKey, contentType);
-            return new PresignResult(objectKey, url, publicUrl, cfg.presignTtlSeconds());
+            return new PresignResult(objectKey, uploadUrl, publicUrl, cfg.presignTtlSeconds());
         } catch (Exception e) {
             log.error("presign failed key={}", objectKey, e);
             throw new ApiException(ErrorCode.INTERNAL_SERVER_ERROR, "生成上传凭证失败");
@@ -89,6 +91,23 @@ public class MinioObjectStorageService implements ObjectStorageService {
         } catch (Exception e) {
             // 删除失败不阻断主流程，记录即可
             log.warn("delete object failed key={}: {}", objectKey, e.getMessage());
+        }
+    }
+
+    /** 将预签名 URL 的内网 host 换成浏览器可达入口 */
+    private String rewriteToPublicHost(String presignedUrl) {
+        String base = properties.minio().publicBaseUrl();
+        if (base == null || base.isBlank()) {
+            return presignedUrl;
+        }
+        // 形如 http://127.0.0.1:9000/bucket/key?query → http://public/bucket/key?query
+        try {
+            java.net.URI uri = java.net.URI.create(presignedUrl);
+            java.net.URI pub = java.net.URI.create(base);
+            return new java.net.URI(pub.getScheme(), pub.getAuthority(),
+                    uri.getPath(), uri.getQuery(), null).toString();
+        } catch (Exception e) {
+            return presignedUrl;
         }
     }
 
