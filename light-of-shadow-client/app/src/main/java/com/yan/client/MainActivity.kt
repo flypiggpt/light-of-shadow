@@ -44,7 +44,11 @@ class MainActivity : ComponentActivity() {
         AppSettings.init(applicationContext)
         setContent {
             ClientTheme(darkTheme = false, dynamicColor = false) {
-                var route by remember { mutableStateOf(AuthRoute.Login) }
+                var route by remember {
+                    mutableStateOf(
+                        if (AppSettings.restoreSession()) AuthRoute.Main else AuthRoute.Login
+                    )
+                }
 
                 when (route) {
                     AuthRoute.Login -> {

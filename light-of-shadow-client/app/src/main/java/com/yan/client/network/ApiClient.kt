@@ -197,7 +197,18 @@ object ApiClient {
         val body = JSONObject().apply {
             put("refreshToken", refreshToken)
         }
-        return request("POST", "/auth/refresh", body)
+        val resp = request("POST", "/auth/refresh", body)
+        // 刷新成功后持久化新 token（含轮换的 refreshToken）
+        if (resp.code == 0) {
+            val data = resp.data
+            com.yan.client.settings.AppSettings.saveTokens(
+                accessToken = data?.optString("accessToken")?.takeIf { it.isNotBlank() },
+                refreshToken = data?.optString("refreshToken")?.takeIf { it.isNotBlank() }
+                    ?: TokenStore.refreshToken,
+                expiresIn = data?.optLong("expiresIn", 0L) ?: 0L
+            )
+        }
+        return resp
     }
 
     // ===================== Shop Endpoints =====================

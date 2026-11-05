@@ -53,7 +53,6 @@ import androidx.compose.ui.unit.dp
 import com.yan.client.R
 import com.yan.client.ui.theme.NeumorphismSurfacePressed
 import com.yan.client.network.ApiClient
-import com.yan.client.network.TokenStore
 import com.yan.client.settings.AppSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -525,9 +524,11 @@ private fun submitLogin(
 			} else {
 				if (resp.code == 0) {
 					// store tokens (in-memory for now)
-					TokenStore.accessToken = resp.data?.let { if (it.has("accessToken") && !it.isNull("accessToken")) it.optString("accessToken") else null }
-					TokenStore.refreshToken = resp.data?.let { if (it.has("refreshToken") && !it.isNull("refreshToken")) it.optString("refreshToken") else null }
-					TokenStore.expiresIn = resp.data?.optLong("expiresIn", 0L) ?: 0L
+					AppSettings.saveTokens(
+						accessToken = resp.data?.optString("accessToken")?.takeIf { it.isNotBlank() },
+						refreshToken = resp.data?.optString("refreshToken")?.takeIf { it.isNotBlank() },
+						expiresIn = resp.data?.optLong("expiresIn", 0L) ?: 0L
+					)
 					AppSettings.saveLoginProfile(
 						account = account.trim(),
 						nickname = resp.data?.optString("nickname")?.takeIf { it.isNotBlank() }

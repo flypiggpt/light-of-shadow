@@ -16,6 +16,9 @@ object AppSettings {
     private const val KEY_SPEECH_RATE = "speech_rate"
     private const val KEY_ACCOUNT = "account"
     private const val KEY_NICKNAME = "nickname"
+    private const val KEY_ACCESS_TOKEN = "access_token"
+    private const val KEY_REFRESH_TOKEN = "refresh_token"
+    private const val KEY_EXPIRES_IN = "expires_in"
 
     private lateinit var prefs: SharedPreferences
 
@@ -56,7 +59,34 @@ object AppSettings {
         this.nickname = nickname ?: ""
     }
 
+    fun saveTokens(accessToken: String?, refreshToken: String?, expiresIn: Long) {
+        TokenStore.accessToken = accessToken
+        TokenStore.refreshToken = refreshToken
+        TokenStore.expiresIn = expiresIn
+        safePrefs.edit()
+            .putString(KEY_ACCESS_TOKEN, accessToken ?: "")
+            .putString(KEY_REFRESH_TOKEN, refreshToken ?: "")
+            .putLong(KEY_EXPIRES_IN, expiresIn)
+            .apply()
+    }
+
+    /** 启动时从本地恢复登录态；返回是否有有效 token */
+    fun restoreSession(): Boolean {
+        val access = safePrefs.getString(KEY_ACCESS_TOKEN, "") ?: ""
+        val refresh = safePrefs.getString(KEY_REFRESH_TOKEN, "") ?: ""
+        if (access.isBlank() && refresh.isBlank()) return false
+        TokenStore.accessToken = access.ifBlank { null }
+        TokenStore.refreshToken = refresh.ifBlank { null }
+        TokenStore.expiresIn = safePrefs.getLong(KEY_EXPIRES_IN, 0L)
+        return true
+    }
+
     fun clearSession() {
+        safePrefs.edit()
+            .remove(KEY_ACCESS_TOKEN)
+            .remove(KEY_REFRESH_TOKEN)
+            .remove(KEY_EXPIRES_IN)
+            .apply()
         TokenStore.accessToken = null
         TokenStore.refreshToken = null
         TokenStore.expiresIn = 0L
