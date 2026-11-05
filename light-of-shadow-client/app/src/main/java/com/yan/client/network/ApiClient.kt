@@ -26,8 +26,41 @@ object ApiClient {
      * @param headers optional custom headers
      * @return ApiResponse with code, message, and data
      */
+    /** 认证相关路径：401 时不走 refresh 重试，避免死循环 */
+    private val noRetryPaths = setOf(
+        "/auth/login", "/auth/register", "/auth/code",
+        "/auth/password/forgot", "/auth/password/reset",
+        "/auth/refresh", "/auth/logout"
+    )
+
     @Throws(Exception::class)
     private fun request(
+        method: String,
+        path: String,
+        jsonBody: JSONObject? = null,
+        headers: Map<String, String> = emptyMap()
+    ): ApiResponse {
+        val resp = doRequest(method, path, jsonBody, headers)
+        val tokenPath = path.substringBefore("?")
+        val canRetry = tokenPath !in noRetryPaths &&
+                resp.code == 401 &&
+                !TokenStore.refreshToken.isNullOrBlank()
+        if (!canRetry) return resp
+
+        // accessToken 过期：用 refreshToken 换新后重试一次
+        val refreshed = refresh(TokenStore.refreshToken!!)
+        if (refreshed.code != 0) return resp
+
+        val newHeaders = if (headers.keys.any { it.equals("Authorization", true) }) {
+            headers.mapValues { (k, v) -> if (k.equals("Authorization", true)) "Bearer ${TokenStore.accessToken}" else v }
+        } else {
+            headers + getAuthHeaders()
+        }
+        return doRequest(method, path, jsonBody, newHeaders)
+    }
+
+    @Throws(Exception::class)
+    private fun doRequest(
         method: String,
         path: String,
         jsonBody: JSONObject? = null,
@@ -197,7 +230,18 @@ object ApiClient {
         val body = JSONObject().apply {
             put("refreshToken", refreshToken)
         }
-        return request("POST", "/auth/refresh", body)
+        val resp = request("POST", "/auth/refresh", body)
+        // 刷新成功后持久化新 token（含轮换的 refreshToken）
+        if (resp.code == 0) {
+            val data = resp.data
+            com.yan.client.settings.AppSettings.saveTokens(
+                accessToken = data?.optString("accessToken")?.takeIf { it.isNotBlank() },
+                refreshToken = data?.optString("refreshToken")?.takeIf { it.isNotBlank() }
+                    ?: TokenStore.refreshToken,
+                expiresIn = data?.optLong("expiresIn", 0L) ?: 0L
+            )
+        }
+        return resp
     }
 
     // ===================== Shop Endpoints =====================
