@@ -43,7 +43,7 @@ import kotlinx.coroutines.launch
 fun MainScreen(
     modifier: Modifier = Modifier,
     onLogout: () -> Unit = {},
-    onCommunityClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     onStartGuide: () -> Unit = {},
     onShopClick: () -> Unit = {}
 ) {
@@ -78,10 +78,7 @@ fun MainScreen(
                 ) {
                     TopActionCard(
                         text = "设置",
-                        onClick = {
-                            onCommunityClick()
-                            scope.launch { snackbarHostState.showSnackbar("社区功能暂未开放") }
-                        }
+                        onClick = onSettingsClick
                     )
 
                     TopActionCard(
@@ -119,15 +116,6 @@ fun MainScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    BottomPanelCard(
-                        title = "社区",
-                        subtitle = "COMMUNITY",
-                        onClick = {
-                            onCommunityClick()
-                            scope.launch { snackbarHostState.showSnackbar("社区功能暂未开放") }
-                        }
-                    )
-
                     BottomPanelCard(
                         title = "商城",
                         subtitle = "SHOPS",
