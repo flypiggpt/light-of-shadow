@@ -14,7 +14,8 @@ Monorepo — backend, Android client, and docs live in one Git repository:
 light-of-shadow/
 ├── docs/                        # API contracts, design, database, guides
 ├── light-of-shadow-backend/     # Spring Boot 3 + MyBatis backend
-└── light-of-shadow-client/      # Android client (Kotlin + Compose)
+├── light-of-shadow-client/      # Android client (Kotlin + Compose)
+└── light-of-shadow-merchant/    # Merchant web admin (Vue3 + Element Plus)
 ```
 
 - API contracts: [`docs/api/`](docs/api/)
