@@ -52,7 +52,6 @@ fun SettingsScreen(
     onLogout: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    var alertSound by remember { mutableStateOf(AppSettings.alertSoundEnabled) }
     var ttsEnabled by remember { mutableStateOf(AppSettings.ttsEnabled) }
     var speechRate by remember { mutableFloatStateOf(AppSettings.speechRate) }
 
@@ -96,15 +95,6 @@ fun SettingsScreen(
             }
 
             SettingsGroup(title = "导盲与语音") {
-                SettingsSwitchRow(
-                    title = "提示音",
-                    subtitle = "检测到障碍时播放「叮」提示音",
-                    checked = alertSound,
-                    onCheckedChange = {
-                        alertSound = it
-                        AppSettings.alertSoundEnabled = it
-                    }
-                )
                 SettingsSwitchRow(
                     title = "语音播报",
                     subtitle = "朗读障碍物名称（如：行人、车辆）",

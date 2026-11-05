@@ -52,7 +52,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.yan.client.R
-import com.yan.client.audio.ObstacleAlertPlayer
 import com.yan.client.audio.TtsAlertManager
 import com.yan.client.settings.AppSettings
 import com.yan.client.ui.theme.NeumorphismBackground
@@ -79,7 +78,6 @@ fun GuideScreen(
         }
     }
     val detector = remember(context) { ObstacleDetector(context) }
-    val obstacleAlertPlayer = remember(context) { ObstacleAlertPlayer(context) }
     val ttsAlertManager = remember(context) { TtsAlertManager(context) }
     DisposableEffect(ttsAlertManager) {
         ttsAlertManager.setSpeechRate(AppSettings.speechRate)
@@ -90,7 +88,6 @@ fun GuideScreen(
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
     var latestAlert by rememberSaveable { mutableStateOf("正在初始化导盲识别…") }
     var latestDetections by remember { mutableStateOf<List<ObstacleDetection>>(emptyList()) }
-    var soundEnabled by rememberSaveable { mutableStateOf(AppSettings.alertSoundEnabled) }
     var hasPermission by rememberSaveable {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
@@ -124,15 +121,6 @@ fun GuideScreen(
     LaunchedEffect(latestDetections) {
         val primary = latestDetections.firstOrNull() ?: return@LaunchedEffect
         if (!primary.isObstacle) return@LaunchedEffect
-
-        // 提示音（设置可关）
-        if (AppSettings.alertSoundEnabled) {
-            if (!obstacleAlertPlayer.playIfAllowed(3000L)) {
-                obstacleAlertPlayer.getInitializationError()?.let { err ->
-                    scope.launch { snackbarHostState.showSnackbar(err) }
-                }
-            }
-        }
 
         // 语音播报障碍名（设置可关）
         if (AppSettings.ttsEnabled) {
@@ -207,7 +195,6 @@ fun GuideScreen(
         onDispose {
             cameraExecutor.shutdown()
             detector.close()
-            obstacleAlertPlayer.close()
         }
     }
 
@@ -268,7 +255,7 @@ fun GuideScreen(
                             text = if (latestDetections.isEmpty()) {
                                 "当前未发现稳定障碍"
                             } else {
-                                "识别到 ${latestDetections.size} 个目标，检测到障碍时会播放本地提示音"
+                                "识别到 ${latestDetections.size} 个目标，检测到障碍时将语音播报"
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color.White.copy(alpha = 0.88f)
@@ -277,57 +264,22 @@ fun GuideScreen(
                             DetectionPill(detection = detection)
                         }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Button(
+                            onClick = {
+                                ttsAlertManager.speakNow("语音测试成功")
+                                val err = ttsAlertManager.getInitializationError()
+                                    ?: ttsAlertManager.getLastSpeakError()
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(err ?: "已触发语音播报")
+                                }
+                            },
+                            shape = RoundedCornerShape(18.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = NeumorphismPrimary,
+                                contentColor = Color.White
+                            )
                         ) {
-                            Button(
-                                onClick = {
-                                    val played = obstacleAlertPlayer.playNow(force = true)
-                                    if (played) {
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar(context.getString(R.string.alert_sound_test_message))
-                                        }
-                                    } else {
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar(
-                                                obstacleAlertPlayer.getInitializationError()
-                                                    ?: context.getString(R.string.alert_sound_missing_hint)
-                                            )
-                                        }
-                                    }
-                                },
-                                shape = RoundedCornerShape(18.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = NeumorphismPrimary,
-                                    contentColor = Color.White
-                                )
-                            ) {
-                                Text(text = stringResource(R.string.alert_sound_test_button))
-                            }
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "提示音",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Color.White
-                                )
-                                Switch(
-                                    checked = soundEnabled,
-                                    onCheckedChange = {
-                                        soundEnabled = it
-                                        AppSettings.alertSoundEnabled = it
-                                        obstacleAlertPlayer.setSoundEnabled(it)
-                                    },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = NeumorphismPrimary,
-                                        checkedTrackColor = NeumorphismPrimary.copy(alpha = 0.5f),
-                                        uncheckedThumbColor = Color.Gray,
-                                        uncheckedTrackColor = Color.Gray.copy(alpha = 0.5f)
-                                    )
-                                )
-                            }
+                            Text(text = "测试语音")
                         }
                     }
                 }
