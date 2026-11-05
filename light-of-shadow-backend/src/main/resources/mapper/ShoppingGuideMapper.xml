@@ -51,4 +51,11 @@
     <select id="countMessagesBySession" resultType="int">
         SELECT COUNT(*) FROM sg_message WHERE session_id = #{sessionId}
     </select>
+    <select id="selectLatestSessionByUserId" resultMap="SessionResultMap">
+        SELECT id, user_id, entry, source, locale, status, welcome_message, created_at, updated_at
+        FROM sg_session
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
 </mapper>

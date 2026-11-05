@@ -38,6 +38,15 @@ public class ShoppingGuideController {
         return ApiResponse.success(shoppingGuideService.createSession(userId, request));
     }
 
+    /** 最近一次会话（含消息），App 重启后恢复历史用 */
+    @GetMapping("/sessions")
+    public ApiResponse<Map<String, Object>> latestSession(
+            @RequestAttribute(value = "userId", required = false) String userId,
+            HttpServletRequest request) {
+        String uid = authSupport.requireUserId(userId, request);
+        return ApiResponse.success(shoppingGuideService.latestSession(uid));
+    }
+
     @GetMapping("/sessions/{sessionId}")
     public ApiResponse<Map<String, Object>> getSession(
             @PathVariable("sessionId") String sessionId,

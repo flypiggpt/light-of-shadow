@@ -284,8 +284,45 @@ fun ShopScreen(
         }
     }
 
+    suspend fun restoreLatestGuideSession(): Boolean {
+        return try {
+            val resp = withContext(Dispatchers.IO) {
+                ApiClient.getLatestGuideSession()
+            }
+            val session = resp.data?.extractObject("session") ?: return false
+            val sid = session.optString("sessionId").takeIf { it.isNotBlank() } ?: return false
+            guideSessionId = sid
+
+            val msgResp = withContext(Dispatchers.IO) {
+                ApiClient.getGuideMessages(sid)
+            }
+            val list = msgResp.data?.optJSONArray("messages") ?: msgResp.data?.optJSONArray("items")
+            val restored = buildList {
+                session.optString("welcomeMessage").takeIf { it.isNotBlank() }?.let {
+                    add(GuideMessage(role = "assistant", content = it))
+                }
+                if (list != null) {
+                    for (i in 0 until list.length()) {
+                        val m = list.optJSONObject(i) ?: continue
+                        val role = m.optString("role").takeIf { it.isNotBlank() } ?: continue
+                        val content = m.optString("content").takeIf { it.isNotBlank() } ?: continue
+                        add(GuideMessage(role = role, content = content))
+                    }
+                }
+            }
+            if (restored.isNotEmpty()) {
+                guideMessages = restored
+            }
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     suspend fun ensureGuideSessionId(): String? {
         if (!guideSessionId.isNullOrBlank()) return guideSessionId
+        // 先尝试恢复最近会话（含历史消息），失败再新建
+        if (restoreLatestGuideSession()) return guideSessionId
         return try {
             val resp = withContext(Dispatchers.IO) {
                 ApiClient.createShoppingGuideSession()

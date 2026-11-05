@@ -99,6 +99,15 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
     }
 
     @Override
+    public Map<String, Object> latestSession(String userId) {
+        SessionEntity entity = shoppingGuideMapper.selectLatestSessionByUserId(userId);
+        if (entity == null) {
+            return new LinkedHashMap<>();
+        }
+        return getSession(userId, entity.getId());
+    }
+
+    @Override
     public Map<String, Object> getSession(String userId, String sessionId) {
         SessionState session = requireSession(userId, sessionId, false);
         Map<String, Object> result = new LinkedHashMap<>();

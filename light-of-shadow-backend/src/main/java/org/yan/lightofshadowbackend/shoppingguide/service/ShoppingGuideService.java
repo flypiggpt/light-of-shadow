@@ -12,6 +12,9 @@ public interface ShoppingGuideService {
 
     Map<String, Object> createSession(String userId, ShoppingGuideSessionCreateRequest request);
 
+    /** 最近一次会话（含消息）；无则返回空 data */
+    Map<String, Object> latestSession(String userId);
+
     Map<String, Object> getSession(String userId, String sessionId);
 
     Map<String, Object> sendMessage(String userId, String sessionId, ShoppingGuideMessageRequest request);

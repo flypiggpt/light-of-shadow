@@ -12,6 +12,8 @@ public interface ShoppingGuideMapper {
 
     SessionEntity selectSessionById(@Param("id") String id);
 
+    SessionEntity selectLatestSessionByUserId(@Param("userId") String userId);
+
     int updateSessionStatus(@Param("id") String id, @Param("status") String status, @Param("now") Instant now);
 
     int insertMessage(MessageEntity message);
