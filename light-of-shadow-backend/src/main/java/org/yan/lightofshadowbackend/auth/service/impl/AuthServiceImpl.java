@@ -145,7 +145,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public RefreshResponse refresh(RefreshRequest request) {
         String tokenHash = tokenService.hashRefreshToken(request.refreshToken());
         RefreshTokenEntity activeToken = refreshTokenMapper.selectActiveByTokenHash(tokenHash, Instant.now());
@@ -161,8 +161,24 @@ public class AuthServiceImpl implements AuthService {
             throw new ApiException(ErrorCode.FORBIDDEN, "账号已被禁用");
         }
 
+        // 轮换：作废旧 refreshToken，签发新的
+        refreshTokenMapper.revokeById(activeToken.getId(), Instant.now());
+        String newRefreshToken = tokenService.generateRefreshToken();
+        persistRefreshToken(user.getId(), newRefreshToken);
+
         String accessToken = tokenService.createAccessToken(user, authProperties.accessTokenTtl());
-        return new RefreshResponse(accessToken, authProperties.accessTokenTtl().toSeconds());
+        return new RefreshResponse(accessToken, newRefreshToken,
+                authProperties.accessTokenTtl().toSeconds(), authProperties.refreshTokenTtl().toSeconds());
+    }
+
+    @Override
+    @Transactional
+    public void logout(RefreshRequest request) {
+        String tokenHash = tokenService.hashRefreshToken(request.refreshToken());
+        RefreshTokenEntity activeToken = refreshTokenMapper.selectActiveByTokenHash(tokenHash, Instant.now());
+        if (activeToken != null) {
+            refreshTokenMapper.revokeById(activeToken.getId(), Instant.now());
+        }
     }
 
     @Override

@@ -17,7 +17,12 @@ import com.yan.client.ui.login.ForgotPasswordScreen
 import com.yan.client.ui.login.LoginScreen
 import com.yan.client.ui.login.RegisterScreen
 import com.yan.client.ui.main.MainScreen
+import com.yan.client.network.ApiClient
+import com.yan.client.network.TokenStore
 import com.yan.client.settings.AppSettings
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.yan.client.ui.settings.SettingsScreen
 import com.yan.client.ui.shop.ShopScreen
 import com.yan.client.ui.theme.ClientTheme
@@ -85,6 +90,12 @@ class MainActivity : ComponentActivity() {
                         MainScreen(
                             modifier = Modifier.fillMaxSize(),
                             onLogout = {
+                                val rt = TokenStore.refreshToken
+                                if (!rt.isNullOrBlank()) {
+                                    CoroutineScope(Dispatchers.IO).launch {
+                                        runCatching { ApiClient.logout() }
+                                    }
+                                }
                                 AppSettings.clearSession()
                                 route = AuthRoute.Login
                             },

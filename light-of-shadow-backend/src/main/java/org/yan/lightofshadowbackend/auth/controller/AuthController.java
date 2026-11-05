@@ -41,6 +41,13 @@ public class AuthController {
         return ApiResponse.success(authService.refresh(request));
     }
 
+    /** 登出：作废当前 refreshToken。 */
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(@RequestBody RefreshRequest request) {
+        authService.logout(request);
+        return ApiResponse.success("已登出", null);
+    }
+
     /**
      * 发送验证码。dev 模式下响应 data.verificationCode 会回显，便于联调。
      */
