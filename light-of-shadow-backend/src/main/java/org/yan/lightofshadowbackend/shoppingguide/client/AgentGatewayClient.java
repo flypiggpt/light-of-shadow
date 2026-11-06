@@ -40,7 +40,9 @@ public class AgentGatewayClient {
     public AgentGatewayClient(AgentProperties properties, ObjectMapper objectMapper) {
         this.properties = properties;
         this.objectMapper = objectMapper;
+        // 强制 HTTP/1.1：默认会先发 h2c 升级，uvicorn 不认导致 body 丢失（422）
         this.httpClient = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(Duration.ofMillis(properties.connectTimeoutMs()))
                 .build();
     }
