@@ -1,4 +1,3 @@
-# 音影寻光 · 导购智能服务镜像
 FROM python:3.12-slim AS builder
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -8,9 +7,13 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /build
+# 先只拷 pyproject.toml 装依赖（代码变更不会触发重新下载）
 COPY pyproject.toml ./
+RUN pip install --index-url https://pypi.tuna.tsinghua.edu.cn/simple .
+
+# 再拷源码（轻量）
 COPY app ./app
-RUN pip install .
+RUN pip install --index-url https://pypi.tuna.tsinghua.edu.cn/simple .
 
 FROM python:3.12-slim AS runtime
 
@@ -28,5 +31,4 @@ COPY app ./app
 
 USER appuser
 EXPOSE 8000
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
