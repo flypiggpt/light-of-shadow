@@ -206,6 +206,21 @@ class JavaApiClient:
             request_id=request_id,
         )
 
+    async def cancel_order(
+        self,
+        *,
+        order_id: str,
+        user_token: str | None = None,
+        request_id: str | None = None,
+    ) -> dict[str, Any]:
+        """POST /api/shop/orders/{id}/cancel 取消待支付订单（自动恢复库存）。"""
+        return await self._request_json(
+            "POST",
+            f"/api/shop/orders/{order_id}/cancel",
+            user_token=user_token,
+            request_id=request_id,
+        )
+
     # ------------------------------------------------------------------
     # 内部实现
     # ------------------------------------------------------------------

@@ -68,92 +68,153 @@
       "id": "retr-001",
       "type": "retrieval",
       "query": "退货怎么退，运费谁出",
-      "expected": { "doc_ids": ["faq-return"] }
+      "expected": {
+        "doc_ids": [
+          "faq-return"
+        ]
+      }
     },
     {
       "id": "retr-002",
       "type": "retrieval",
       "query": "七天无理由退货的条件是什么",
-      "expected": { "doc_ids": ["faq-return"] }
+      "expected": {
+        "doc_ids": [
+          "faq-return"
+        ]
+      }
     },
     {
       "id": "retr-003",
       "type": "retrieval",
       "query": "订单满多少可以包邮",
-      "expected": { "doc_ids": ["faq-shipping"] }
+      "expected": {
+        "doc_ids": [
+          "faq-shipping"
+        ]
+      }
     },
     {
       "id": "retr-004",
       "type": "retrieval",
       "query": "发货之后几天能收到货",
-      "expected": { "doc_ids": ["faq-shipping"] }
+      "expected": {
+        "doc_ids": [
+          "faq-shipping"
+        ]
+      }
     },
     {
       "id": "retr-005",
       "type": "retrieval",
       "query": "你们支持哪些支付方式",
-      "expected": { "doc_ids": ["faq-payment"] }
+      "expected": {
+        "doc_ids": [
+          "faq-payment"
+        ]
+      }
     },
     {
       "id": "retr-006",
       "type": "retrieval",
       "query": "可以开发票吗，发票怎么开",
-      "expected": { "doc_ids": ["faq-invoice"] }
+      "expected": {
+        "doc_ids": [
+          "faq-invoice"
+        ]
+      }
     },
     {
       "id": "retr-007",
       "type": "retrieval",
       "query": "会员积分怎么抵现",
-      "expected": { "doc_ids": ["faq-member"] }
+      "expected": {
+        "doc_ids": [
+          "faq-member"
+        ]
+      }
     },
     {
       "id": "retr-008",
       "type": "retrieval",
       "query": "降噪耳机的续航是多久",
-      "expected": { "doc_ids": ["product-earbuds"] }
+      "expected": {
+        "doc_ids": [
+          "product-earbuds"
+        ]
+      }
     },
     {
       "id": "retr-009",
       "type": "retrieval",
       "query": "轻薄本的内存和屏幕参数",
-      "expected": { "doc_ids": ["product-laptop"] }
+      "expected": {
+        "doc_ids": [
+          "product-laptop"
+        ]
+      }
     },
     {
       "id": "retr-010",
       "type": "retrieval",
       "query": "手表支持血氧监测吗",
-      "expected": { "doc_ids": ["product-watch"] }
+      "expected": {
+        "doc_ids": [
+          "product-watch"
+        ]
+      }
     },
     {
       "id": "retr-011",
       "type": "retrieval",
       "query": "手机电池多大，充电快不快",
-      "expected": { "doc_ids": ["product-phone"] }
+      "expected": {
+        "doc_ids": [
+          "product-phone"
+        ]
+      }
     },
     {
       "id": "retr-012",
       "type": "retrieval",
       "query": "耳机应该怎么选",
-      "expected": { "doc_ids": ["guide-compare"] }
+      "expected": {
+        "doc_ids": [
+          "guide-compare"
+        ]
+      }
     },
     {
       "id": "retr-013",
       "type": "retrieval",
       "query": "保修期有多久，能换新吗",
-      "expected": { "doc_ids": ["faq-aftersale"] }
+      "expected": {
+        "doc_ids": [
+          "faq-aftersale"
+        ]
+      }
     },
     {
       "id": "retr-014",
       "type": "retrieval",
       "query": "预售商品什么时候发货",
-      "expected": { "doc_ids": ["faq-cart"] }
+      "expected": {
+        "doc_ids": [
+          "faq-cart"
+        ]
+      }
     },
     {
       "id": "tool-001",
       "type": "tool",
       "query": "帮我找一款降噪耳机",
       "expected": {
-        "tool": { "name": "search_products", "args_contains": { "query": "降噪耳机" } }
+        "tool": {
+          "name": "search_products",
+          "args_contains": {
+            "query": "降噪耳机"
+          }
+        }
       }
     },
     {
@@ -161,51 +222,85 @@
       "type": "tool",
       "query": "有没有轻薄笔记本推荐",
       "expected": {
-        "tool": { "name": "search_products", "args_contains": { "query": "轻薄笔记本" } }
+        "tool": {
+          "name": "search_products",
+          "args_contains": {
+            "query": "轻薄笔记本"
+          }
+        }
       }
     },
     {
       "id": "tool-003",
       "type": "tool",
       "query": "iPhone 和小米手机哪个更好",
-      "expected": { "tool": { "name": "compare" } }
+      "expected": {
+        "tool": {
+          "name": "compare"
+        }
+      }
     },
     {
       "id": "tool-004",
       "type": "tool",
       "query": "把无线耳机和智能手表对比一下",
-      "expected": { "tool": { "name": "compare" } }
+      "expected": {
+        "tool": {
+          "name": "compare"
+        }
+      }
     },
     {
       "id": "tool-005",
       "type": "tool",
       "query": "把这款耳机加入购物车",
-      "expected": { "tool": { "name": "add_cart" } }
+      "expected": {
+        "tool": {
+          "name": "add_cart"
+        }
+      }
     },
     {
       "id": "tool-006",
       "type": "tool",
       "query": "我要买这个手机壳，帮我加购",
-      "expected": { "tool": { "name": "add_cart" } }
+      "expected": {
+        "tool": {
+          "name": "add_cart"
+        }
+      }
     },
     {
       "id": "tool-007",
       "type": "tool",
       "query": "支持花呗分期吗",
-      "expected": { "tool": { "name": "faq" } }
+      "expected": {
+        "tool": {
+          "name": "faq"
+        }
+      }
     },
     {
       "id": "tool-008",
       "type": "tool",
       "query": "怎么申请退货",
-      "expected": { "tool": { "name": "faq" } }
+      "expected": {
+        "tool": {
+          "name": "faq"
+        }
+      }
     },
     {
       "id": "tool-009",
       "type": "tool",
       "query": "看看 SKU-1001 的详细参数",
       "expected": {
-        "tool": { "name": "get_product", "args_contains": { "sku": "SKU-1001" } }
+        "tool": {
+          "name": "get_product",
+          "args_contains": {
+            "sku": "SKU-1001"
+          }
+        }
       }
     },
     {
@@ -213,76 +308,127 @@
       "type": "tool",
       "query": "帮我搜一下 5000 元以内的手机",
       "expected": {
-        "tool": { "name": "search_products", "args_contains": { "query": "手机" } }
+        "tool": {
+          "name": "search_products",
+          "args_contains": {
+            "query": "手机"
+          }
+        }
       }
     },
     {
       "id": "ans-001",
       "type": "answer",
       "query": "退货需要自己承担运费吗",
-      "expected": { "answer_contains": ["无理由", "运费"] }
+      "expected": {
+        "answer_contains": [
+          "无理由",
+          "运费"
+        ]
+      }
     },
     {
       "id": "ans-002",
       "type": "answer",
       "query": "下单满多少钱包邮",
-      "expected": { "answer_contains": ["99"] }
+      "expected": {
+        "answer_contains": [
+          "99"
+        ]
+      }
     },
     {
       "id": "ans-003",
       "type": "answer",
       "query": "发票什么时候能申请",
-      "expected": { "answer_contains": ["电子发票", "30 日内"] }
+      "expected": {
+        "answer_contains": [
+          "电子发票",
+          "30 日内"
+        ]
+      }
     },
     {
       "id": "ans-004",
       "type": "answer",
       "query": "积分怎么抵现",
-      "expected": { "answer_contains": ["100 积分"] }
+      "expected": {
+        "answer_contains": [
+          "100 积分"
+        ]
+      }
     },
     {
       "id": "ans-005",
       "type": "answer",
       "query": "耳机降噪深度是多少",
-      "expected": { "answer_contains": ["42dB"] }
+      "expected": {
+        "answer_contains": [
+          "42dB"
+        ]
+      }
     },
     {
       "id": "ans-006",
       "type": "answer",
       "query": "手表能测血氧吗",
-      "expected": { "answer_contains": ["血氧"] }
+      "expected": {
+        "answer_contains": [
+          "血氧"
+        ]
+      }
     },
     {
       "id": "ans-007",
       "type": "answer",
       "query": "手机支持多少瓦快充",
-      "expected": { "answer_contains": ["120W"] }
+      "expected": {
+        "answer_contains": [
+          "120W"
+        ]
+      }
     },
     {
       "id": "ans-008",
       "type": "answer",
       "query": "整机保修多久",
-      "expected": { "answer_contains": ["1 年"] }
+      "expected": {
+        "answer_contains": [
+          "1 年"
+        ]
+      }
     },
     {
       "id": "ans-009",
       "type": "answer",
       "query": "下单后多久发货",
-      "expected": { "answer_contains": ["48 小时"] }
+      "expected": {
+        "answer_contains": [
+          "48 小时"
+        ]
+      }
     },
     {
       "id": "ans-010",
       "type": "answer",
       "query": "笔记本重量是多少",
-      "expected": { "answer_contains": ["1.2kg"] }
+      "expected": {
+        "answer_contains": [
+          "1.2kg"
+        ]
+      }
     },
     {
       "id": "mix-001",
       "type": "mixed",
       "query": "7 天无理由退货要扣运费吗",
       "expected": {
-        "doc_ids": ["faq-return"],
-        "answer_contains": ["无理由"]
+        "doc_ids": [
+          "faq-return"
+        ],
+        "answer_contains": [
+          "无理由"
+        ]
       }
     },
     {
@@ -290,8 +436,12 @@
       "type": "mixed",
       "query": "降噪耳机续航怎么样",
       "expected": {
-        "doc_ids": ["product-earbuds"],
-        "answer_contains": ["30 小时"]
+        "doc_ids": [
+          "product-earbuds"
+        ],
+        "answer_contains": [
+          "30 小时"
+        ]
       }
     },
     {
@@ -299,8 +449,12 @@
       "type": "mixed",
       "query": "包邮政策是什么，满 99 包邮吗",
       "expected": {
-        "doc_ids": ["faq-shipping"],
-        "answer_contains": ["99"]
+        "doc_ids": [
+          "faq-shipping"
+        ],
+        "answer_contains": [
+          "99"
+        ]
       }
     },
     {
@@ -308,8 +462,12 @@
       "type": "mixed",
       "query": "会员积分能干什么用",
       "expected": {
-        "doc_ids": ["faq-member"],
-        "answer_contains": ["积分"]
+        "doc_ids": [
+          "faq-member"
+        ],
+        "answer_contains": [
+          "积分"
+        ]
       }
     },
     {
@@ -317,8 +475,12 @@
       "type": "mixed",
       "query": "售后保修包括电池吗",
       "expected": {
-        "doc_ids": ["faq-aftersale"],
-        "answer_contains": ["电池"]
+        "doc_ids": [
+          "faq-aftersale"
+        ],
+        "answer_contains": [
+          "电池"
+        ]
       }
     },
     {
@@ -326,8 +488,45 @@
       "type": "mixed",
       "query": "支持分期付款吗",
       "expected": {
-        "doc_ids": ["faq-payment"],
-        "answer_contains": ["花呗"]
+        "doc_ids": [
+          "faq-payment"
+        ],
+        "answer_contains": [
+          "花呗"
+        ]
+      }
+    },
+    {
+      "id": "tool-011",
+      "type": "tool",
+      "query": "看看我有哪些订单",
+      "expected": {
+        "tool": {
+          "name": "query_orders"
+        }
+      }
+    },
+    {
+      "id": "tool-012",
+      "type": "tool",
+      "query": "帮我取消订单 20260526001",
+      "expected": {
+        "tool": {
+          "name": "cancel_order",
+          "args_contains": {
+            "order_id": "20260526001"
+          }
+        }
+      }
+    },
+    {
+      "id": "tool-013",
+      "type": "tool",
+      "query": "我的订单物流到哪了",
+      "expected": {
+        "tool": {
+          "name": "track_order"
+        }
       }
     }
   ]

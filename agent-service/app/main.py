@@ -172,6 +172,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     from app.tools.add_cart import AddCartTool
     from app.tools.compare_products import CompareProductsTool
     from app.tools.faq import FaqTool
+    from app.tools.query_orders import QueryOrdersTool
+    from app.tools.track_order import TrackOrderTool
+    from app.tools.cancel_order import CancelOrderTool
     from app.clients.java_api import JavaApiClient
 
     internal_token = settings.internal_token.get_secret_value() if settings.internal_token else ""
@@ -186,6 +189,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         "add_cart": AddCartTool(java_client),
         "compare_products": CompareProductsTool(java_client),
         "faq": FaqTool(java_client),
+        "query_orders": QueryOrdersTool(java_client),
+        "track_order": TrackOrderTool(java_client),
+        "cancel_order": CancelOrderTool(java_client),
     }
     from app.agent.service import LLMAdapter, ToolExecutorAdapter
     deps = AgentDeps(llm=LLMAdapter(settings.llm_base_url, llm_api_key, settings.llm_model), tools=ToolExecutorAdapter(tools))

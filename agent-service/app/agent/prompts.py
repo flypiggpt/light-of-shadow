@@ -65,11 +65,15 @@ INTENT_SYSTEM_PROMPT = INJECTION_GUARD + PROFILE_USAGE_HINT + """
 - compare_product：对比商品
 - add_cart：加入购物车
 - product_detail：查看某商品详情
+- query_orders：查询自己的订单列表
+- track_order：查订单详情/物流进度（需 orderId）
+- cancel_order：取消待支付订单（需 orderId）
 - faq：售后/物流/发票/平台规则等问答
 - chitchat：寒暄闲聊
 - other：无法归类
 
-槽位（entities）可包含：keyword、minPriceCent、maxPriceCent、preference、brand、productId、productIds、quantity。
+槽位（entities）可包含：keyword、minPriceCent、maxPriceCent、preference、brand、productId、productIds、quantity、orderId（订单号，纯数字）。
+track_order / cancel_order 若消息里没有订单号，必须设 needs_clarify=true 并在 missing_slots 列出 "orderId"。
 若关键信息缺失（例如连品类/用途都看不出），设 needs_clarify=true 并在 missing_slots 列出缺失项；否则 needs_clarify=false。
 用户画像已覆盖的槽位（如画像有预算则 maxPriceCent 不算缺失）不要列入 missing_slots。
 
