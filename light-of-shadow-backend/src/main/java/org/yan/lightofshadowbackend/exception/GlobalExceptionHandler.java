@@ -33,6 +33,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnexpected(Exception exception) {
+        // 打印完整堆栈，否则线上 500 无法定位
+        exception.printStackTrace();
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error(ErrorCode.INTERNAL_SERVER_ERROR,
                         ErrorCode.INTERNAL_SERVER_ERROR.defaultMessage()));
