@@ -57,7 +57,11 @@ class JavaApiBusinessError(JavaApiError):
 
 
 class JavaApiClient:
-    """调 Java 内部 API 的异步客户端，连接池复用，建议全局单例。"""
+    """调 Java 内部 API 的异步客户端，建议全局单例。
+
+    每次请求新建 `httpx.AsyncClient`（用完即关）：工具在独立事件循环里执行，
+    共享 client 会带上已关闭循环的连接池，报 “Event loop is closed”。
+    """
 
     def __init__(
         self,
@@ -78,20 +82,14 @@ class JavaApiClient:
         self._timeout_s = timeout_s
         self._max_retries = max_retries
         self._backoff_base_s = backoff_base_s
-        self._client = httpx.AsyncClient(
+        self._transport = transport
+
+    def _new_client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(
             base_url=self._base_url,
             timeout=httpx.Timeout(self._timeout_s, connect=min(5.0, self._timeout_s)),
-            transport=transport,
+            transport=self._transport,
         )
-
-    async def aclose(self) -> None:
-        await self._client.aclose()
-
-    async def __aenter__(self) -> JavaApiClient:
-        return self
-
-    async def __aexit__(self, *exc_info: object) -> None:
-        await self.aclose()
 
     # ------------------------------------------------------------------
     # 业务方法（与 docs/api/shop_api.md、shoppingguide_api.md 对齐）
@@ -249,65 +247,67 @@ class JavaApiClient:
         attempts = self._max_retries + 1
         last_error: JavaApiError | None = None
 
-        for attempt in range(1, attempts + 1):
-            start = time.perf_counter()
-            try:
-                resp = await self._client.request(
-                    method, path, params=params, json=json_body, headers=headers
-                )
-            except httpx.TimeoutException as exc:
-                latency_ms = (time.perf_counter() - start) * 1000
-                logger.warning(
-                    "java_api.timeout",
-                    method=method,
-                    path=path,
-                    attempt=attempt,
-                    latency_ms=round(latency_ms, 1),
-                )
-                last_error = JavaApiTimeoutError(f"Java API 超时: {method} {path}")
-                last_error.__cause__ = exc
-            except httpx.TransportError as exc:
-                latency_ms = (time.perf_counter() - start) * 1000
-                logger.warning(
-                    "java_api.transport_error",
-                    method=method,
-                    path=path,
-                    attempt=attempt,
-                    latency_ms=round(latency_ms, 1),
-                    error=str(exc),
-                )
-                last_error = JavaApiConnectionError(f"Java API 连接失败: {method} {path}")
-                last_error.__cause__ = exc
-            else:
-                latency_ms = (time.perf_counter() - start) * 1000
-                if resp.status_code == 429 or resp.status_code >= 500:
+        # 每次调用独立 client：工具跑在独立事件循环，共享连接池会报 loop closed
+        async with self._new_client() as client:
+            for attempt in range(1, attempts + 1):
+                start = time.perf_counter()
+                try:
+                    resp = await client.request(
+                        method, path, params=params, json=json_body, headers=headers
+                    )
+                except httpx.TimeoutException as exc:
+                    latency_ms = (time.perf_counter() - start) * 1000
                     logger.warning(
-                        "java_api.retryable_status",
+                        "java_api.timeout",
                         method=method,
                         path=path,
-                        status=resp.status_code,
                         attempt=attempt,
                         latency_ms=round(latency_ms, 1),
                     )
-                    last_error = JavaApiBusinessError(
-                        code=resp.status_code,
-                        message=resp.text[:200],
-                        status_code=resp.status_code,
+                    last_error = JavaApiTimeoutError(f"Java API 超时: {method} {path}")
+                    last_error.__cause__ = exc
+                except httpx.TransportError as exc:
+                    latency_ms = (time.perf_counter() - start) * 1000
+                    logger.warning(
+                        "java_api.transport_error",
+                        method=method,
+                        path=path,
+                        attempt=attempt,
+                        latency_ms=round(latency_ms, 1),
+                        error=str(exc),
                     )
+                    last_error = JavaApiConnectionError(f"Java API 连接失败: {method} {path}")
+                    last_error.__cause__ = exc
                 else:
-                    logger.info(
-                        "java_api.request",
-                        method=method,
-                        path=path,
-                        status=resp.status_code,
-                        attempt=attempt,
-                        latency_ms=round(latency_ms, 1),
-                    )
-                    return self._unwrap(resp, path)
+                    latency_ms = (time.perf_counter() - start) * 1000
+                    if resp.status_code == 429 or resp.status_code >= 500:
+                        logger.warning(
+                            "java_api.retryable_status",
+                            method=method,
+                            path=path,
+                            status=resp.status_code,
+                            attempt=attempt,
+                            latency_ms=round(latency_ms, 1),
+                        )
+                        last_error = JavaApiBusinessError(
+                            code=resp.status_code,
+                            message=resp.text[:200],
+                            status_code=resp.status_code,
+                        )
+                    else:
+                        logger.info(
+                            "java_api.request",
+                            method=method,
+                            path=path,
+                            status=resp.status_code,
+                            attempt=attempt,
+                            latency_ms=round(latency_ms, 1),
+                        )
+                        return self._unwrap(resp, path)
 
-            if attempt < attempts:
-                delay = self._backoff_base_s * (2 ** (attempt - 1)) + random.uniform(0, 0.1)
-                await asyncio.sleep(delay)
+                if attempt < attempts:
+                    delay = self._backoff_base_s * (2 ** (attempt - 1)) + random.uniform(0, 0.1)
+                    await asyncio.sleep(delay)
 
         assert last_error is not None
         raise last_error
