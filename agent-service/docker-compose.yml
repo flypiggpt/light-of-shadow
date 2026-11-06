@@ -1,0 +1,69 @@
+# 音影寻光 · 导购智能服务（app + redis）
+# 用法：复制 .env.example 为 .env 并填写密钥，然后 docker compose up -d
+name: light-of-shadow-agent
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: light-of-shadow/agent-service:dev
+    ports:
+      - "8000:8000"
+    environment:
+      AGENT_ENV: ${AGENT_ENV:-dev}
+      AGENT_LOG_LEVEL: ${AGENT_LOG_LEVEL:-INFO}
+      AGENT_REDIS_URL: redis://redis:6379/0
+      AGENT_JAVA_API_BASE_URL: ${AGENT_JAVA_API_BASE_URL:-http://host.docker.internal:8080}
+      AGENT_INTERNAL_TOKEN: ${AGENT_INTERNAL_TOKEN:-}
+      AGENT_LLM_BASE_URL: ${AGENT_LLM_BASE_URL:-https://api.deepseek.com/v1}
+      AGENT_LLM_API_KEY: ${AGENT_LLM_API_KEY:-}
+      AGENT_LLM_MODEL: ${AGENT_LLM_MODEL:-deepseek-chat}
+      AGENT_LANGFUSE_ENABLED: ${AGENT_LANGFUSE_ENABLED:-false}
+      AGENT_LANGFUSE_PUBLIC_KEY: ${AGENT_LANGFUSE_PUBLIC_KEY:-}
+      AGENT_LANGFUSE_SECRET_KEY: ${AGENT_LANGFUSE_SECRET_KEY:-}
+      AGENT_LANGFUSE_HOST: ${AGENT_LANGFUSE_HOST:-https://cloud.langfuse.com}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7-alpine
+    # appendonly 保证 checkpoint 落盘；noeviction 避免 checkpoint 被静默淘汰
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  redis-data:
