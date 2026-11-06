@@ -162,6 +162,36 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     app.state.settings = settings
     app.state.redis = redis
+
+    # 初始化 Agent 编排（LLM + 工具 + 状态机）
+    from app.agent.service import AgentOrchestrator
+    from app.agent.graph import AgentDeps
+    from app.llm.deepseek import DeepSeekClient
+    from app.tools.search_products import SearchProductsTool
+    from app.tools.get_product import GetProductTool
+    from app.tools.add_cart import AddCartTool
+    from app.tools.compare_products import CompareProductsTool
+    from app.tools.faq import FaqTool
+    from app.clients.java_api import JavaApiClient
+
+    internal_token = settings.internal_token.get_secret_value() if settings.internal_token else ""
+    java_client = JavaApiClient(
+        base_url=settings.java_api_base_url,
+        internal_token=internal_token,
+    )
+    llm_api_key = settings.llm_api_key.get_secret_value() if settings.llm_api_key else ""
+    tools = {
+        "search_products": SearchProductsTool(java_client),
+        "get_product": GetProductTool(java_client),
+        "add_cart": AddCartTool(java_client),
+        "compare_products": CompareProductsTool(java_client),
+        "faq": FaqTool(java_client),
+    }
+    from app.agent.service import LLMAdapter, ToolExecutorAdapter
+    deps = AgentDeps(llm=LLMAdapter(settings.llm_base_url, llm_api_key, settings.llm_model), tools=ToolExecutorAdapter(tools))
+    app.state.orchestrator = AgentOrchestrator(deps=deps)
+    app.state.java_client = java_client
+    logger.info("agent_orchestrator_ready", tools=len(tools))
     logger.info(
         "service_start",
         env=settings.env,

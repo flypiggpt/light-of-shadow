@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import Request, APIRouter, HTTPException, Query
 from pydantic import Field
 
 from app.api import ApiResponse, CamelModel
@@ -169,8 +169,12 @@ class FeedbackData(CamelModel):
     response_model=ApiResponse[CreateSessionData],
     summary="创建导购会话",
 )
-async def create_session(body: CreateSessionRequest) -> ApiResponse[CreateSessionData]:
-    raise HTTPException(status_code=501, detail="会话创建尚未接入 Agent 编排")
+async def create_session(body: CreateSessionRequest, request: Request) -> ApiResponse[CreateSessionData]:
+    orch = request.app.state.orchestrator
+    user_id = request.headers.get("X-User-Id", "anonymous")
+    data = orch.create_session(user_id=user_id, entry=body.entry or "shop",
+                               source=body.source or "app", locale=body.locale or "zh-CN")
+    return ApiResponse(data={"session": data, "welcomeMessage": data.get("welcomeMessage", "")})
 
 
 @router.get(
@@ -178,8 +182,12 @@ async def create_session(body: CreateSessionRequest) -> ApiResponse[CreateSessio
     response_model=ApiResponse[SessionDetailData],
     summary="获取会话详情",
 )
-async def get_session(session_id: str) -> ApiResponse[SessionDetailData]:
-    raise HTTPException(status_code=501, detail="会话查询尚未接入 Agent 编排")
+async def get_session(session_id: str, request: Request) -> ApiResponse[SessionDetailData]:
+    orch = request.app.state.orchestrator
+    data = orch.get_session(session_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    return ApiResponse(data={"session": data, "latestRecommendations": []})
 
 
 @router.post(
@@ -188,9 +196,28 @@ async def get_session(session_id: str) -> ApiResponse[SessionDetailData]:
     summary="发送用户消息并获取导购回复",
 )
 async def send_message(
-    session_id: str, body: SendMessageRequest
+    session_id: str, body: SendMessageRequest, request: Request
 ) -> ApiResponse[SendMessageData]:
-    raise HTTPException(status_code=501, detail="导购问答尚未接入 Agent 编排")
+    orch = request.app.state.orchestrator
+    user_id = request.headers.get("X-User-Id", "anonymous")
+    auth = request.headers.get("Authorization", "")
+    token = auth[7:] if auth.startswith("Bearer ") else ""
+    orch.set_auth_token(token)
+    try:
+        result = orch.send_message(session_id=session_id, user_id=user_id,
+                                   text=body.message,
+                                   request_id=request.headers.get("X-Request-ID", ""))
+    except KeyError:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="会话已结束")
+    return ApiResponse(data={
+        "userMessage": result.get("userMessage"),
+        "assistantMessage": result.get("assistantMessage"),
+        "intent": result.get("intent"),
+        "recommendations": result.get("recommendations", []),
+        "actions": result.get("actions", []),
+    })
 
 
 @router.get(
@@ -211,8 +238,12 @@ async def list_messages(
     response_model=ApiResponse[CloseSessionData],
     summary="结束会话",
 )
-async def close_session(session_id: str) -> ApiResponse[CloseSessionData]:
-    raise HTTPException(status_code=501, detail="会话关闭尚未接入 Agent 编排")
+async def close_session(session_id: str, request: Request) -> ApiResponse[CloseSessionData]:
+    orch = request.app.state.orchestrator
+    try:
+        return ApiResponse(data=orch.close_session(session_id))
+    except KeyError:
+        raise HTTPException(status_code=404, detail="会话不存在")
 
 
 @router.get(
