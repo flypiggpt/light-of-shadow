@@ -109,5 +109,8 @@
     WHERE id IN
     <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
   </select>
+  <update id="increaseStock">
+    UPDATE product SET stock = stock + #{quantity} WHERE id = #{id}
+  </update>
 </mapper>
 

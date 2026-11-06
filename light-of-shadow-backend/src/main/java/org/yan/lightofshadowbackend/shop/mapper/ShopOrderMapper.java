@@ -19,5 +19,10 @@ public interface ShopOrderMapper {
             @Param("status") String status);
 
     long countByUserId(@Param("userId") String userId, @Param("status") String status);
+
+    ShopOrderEntity selectByIdAndUserId(@Param("id") String id, @Param("userId") String userId);
+
+    int updateStatusById(@Param("id") String id, @Param("status") String status,
+                         @Param("now") java.time.Instant now);
 }
 

@@ -220,3 +220,31 @@ Query 参数：
 ```
 
 `url` 为相对路径，可直接作为商品 `coverUrl` 使用；通过 `/media/**` 访问（见根 README Image storage）。
+
+## 订单详情
+
+`GET /api/shop/orders/{id}`
+
+返回订单基本信息 + 商品条目（items）。
+
+## 支付（模拟）
+
+`POST /api/shop/orders/{id}/pay`
+
+仅 `PENDING_PAYMENT` 可支付 → 状态变为 `PAID`。
+
+## 取消订单
+
+`POST /api/shop/orders/{id}/cancel`
+
+仅 `PENDING_PAYMENT` 可取消 → 状态变为 `CANCELED`，**自动恢复库存**。
+
+## 收货地址
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/shop/addresses` | 我的地址列表 |
+| POST | `/api/shop/addresses` | 新增/更新（带 id 为更新） |
+| DELETE | `/api/shop/addresses/{id}` | 删除 |
+
+订单状态：`PENDING_PAYMENT` → `PAID` → `SHIPPED` → `COMPLETED`；`CANCELED` 为取消。

@@ -22,6 +22,8 @@ import org.yan.lightofshadowbackend.shop.entity.ShopOrderItemEntity;
 import org.yan.lightofshadowbackend.shop.mapper.CartItemMapper;
 import org.yan.lightofshadowbackend.shop.mapper.ProductMapper;
 import org.yan.lightofshadowbackend.shop.mapper.ShopOrderItemMapper;
+import org.yan.lightofshadowbackend.shop.mapper.UserAddressMapper;
+import org.yan.lightofshadowbackend.shop.entity.UserAddressEntity;
 import org.yan.lightofshadowbackend.shop.mapper.ShopOrderMapper;
 import org.yan.lightofshadowbackend.shop.service.ShopCommerceService;
 
@@ -33,15 +35,18 @@ public class ShopCommerceServiceImpl implements ShopCommerceService {
     private final ProductMapper productMapper;
     private final ShopOrderMapper shopOrderMapper;
     private final ShopOrderItemMapper shopOrderItemMapper;
+    private final UserAddressMapper userAddressMapper;
 
     public ShopCommerceServiceImpl(CartItemMapper cartItemMapper,
             ProductMapper productMapper,
             ShopOrderMapper shopOrderMapper,
-            ShopOrderItemMapper shopOrderItemMapper) {
+            ShopOrderItemMapper shopOrderItemMapper,
+            UserAddressMapper userAddressMapper) {
         this.cartItemMapper = cartItemMapper;
         this.productMapper = productMapper;
         this.shopOrderMapper = shopOrderMapper;
         this.shopOrderItemMapper = shopOrderItemMapper;
+        this.userAddressMapper = userAddressMapper;
     }
 
     @Override
@@ -188,6 +193,123 @@ public class ShopCommerceServiceImpl implements ShopCommerceService {
             lines.add(new OrderLine(order.getId(), order.getOrderNo(), order.getStatus().name(), requireInt(order.getTotalCent()), order.getCreatedAt()));
         }
         return new OrderPage(safePage, safeSize, total, lines);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrderDetail getOrderDetail(String userId, String orderId) {
+        ShopOrderEntity order = shopOrderMapper.selectByIdAndUserId(orderId, userId);
+        if (order == null) {
+            throw new ApiException(ErrorCode.NOT_FOUND, "订单不存在");
+        }
+        return toOrderDetail(order);
+    }
+
+    @Override
+    @Transactional
+    public OrderDetail payOrder(String userId, String orderId) {
+        ShopOrderEntity order = shopOrderMapper.selectByIdAndUserId(orderId, userId);
+        if (order == null) {
+            throw new ApiException(ErrorCode.NOT_FOUND, "订单不存在");
+        }
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "当前状态不可支付");
+        }
+        // 模拟支付成功
+        shopOrderMapper.updateStatusById(orderId, OrderStatus.PAID.name(), Instant.now());
+        return toOrderDetail(order);
+    }
+
+    @Override
+    @Transactional
+    public OrderDetail cancelOrder(String userId, String orderId) {
+        ShopOrderEntity order = shopOrderMapper.selectByIdAndUserId(orderId, userId);
+        if (order == null) {
+            throw new ApiException(ErrorCode.NOT_FOUND, "订单不存在");
+        }
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "仅待支付订单可取消");
+        }
+        // 恢复库存
+        List<ShopOrderItemEntity> items = shopOrderItemMapper.selectByOrderId(orderId);
+        for (ShopOrderItemEntity item : items) {
+            productMapper.increaseStock(item.getProductId(), item.getQuantity());
+        }
+        shopOrderMapper.updateStatusById(orderId, OrderStatus.CANCELED.name(), Instant.now());
+        order.setStatus(OrderStatus.CANCELED);
+        return toOrderDetail(order);
+    }
+
+    private OrderDetail toOrderDetail(ShopOrderEntity order) {
+        List<ShopOrderItemEntity> items = shopOrderItemMapper.selectByOrderId(order.getId());
+        List<OrderItemLine> lines = items.stream()
+                .map(i -> new OrderItemLine(i.getProductId(), i.getProductName(),
+                        requireInt(i.getUnitPriceCent()), safeQuantity(i.getQuantity())))
+                .toList();
+        return new OrderDetail(order.getId(), order.getOrderNo(),
+                order.getStatus() == null ? "" : order.getStatus().name(),
+                requireInt(order.getTotalCent()), order.getAddressId(), order.getRemark(),
+                order.getCreatedAt(), lines);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AddressLine> listAddresses(String userId) {
+        return userAddressMapper.selectByUserId(userId).stream()
+                .map(a -> new AddressLine(a.getId(), a.getReceiverName(), a.getPhone(),
+                        a.getDetail(), a.getIsDefault() != null && a.getIsDefault() == 1))
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public AddressLine saveAddress(String userId, String id, String receiverName,
+                                   String phone, String detail, boolean isDefault) {
+        if (receiverName == null || receiverName.isBlank()
+                || phone == null || phone.isBlank()
+                || detail == null || detail.isBlank()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "收货人/手机号/地址不能为空");
+        }
+        Instant now = Instant.now();
+        String addrId = (id == null || id.isBlank())
+                ? "addr_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12)
+                : id;
+
+        if (isDefault) {
+            userAddressMapper.clearDefaultByUserId(userId, now);
+        }
+
+        UserAddressEntity entity = new UserAddressEntity();
+        entity.setId(addrId);
+        entity.setUserId(userId);
+        entity.setReceiverName(receiverName.trim());
+        entity.setPhone(phone.trim());
+        entity.setDetail(detail.trim());
+        entity.setIsDefault(isDefault ? 1 : 0);
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
+
+        if (id == null || id.isBlank()) {
+            userAddressMapper.insert(entity);
+        } else {
+            UserAddressEntity existing = userAddressMapper.selectByIdAndUserId(addrId, userId);
+            if (existing == null) {
+                throw new ApiException(ErrorCode.NOT_FOUND, "地址不存在");
+            }
+            entity.setCreatedAt(existing.getCreatedAt());
+            userAddressMapper.updateById(entity);
+        }
+        return new AddressLine(addrId, entity.getReceiverName(), entity.getPhone(),
+                entity.getDetail(), isDefault);
+    }
+
+    @Override
+    @Transactional
+    public void deleteAddress(String userId, String addressId) {
+        int affected = userAddressMapper.deleteByIdAndUserId(addressId, userId);
+        if (affected == 0) {
+            throw new ApiException(ErrorCode.NOT_FOUND, "地址不存在");
+        }
     }
 
     private ProductEntity requireProduct(String productId) {

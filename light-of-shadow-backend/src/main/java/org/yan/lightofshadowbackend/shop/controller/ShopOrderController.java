@@ -1,9 +1,12 @@
 package org.yan.lightofshadowbackend.shop.controller;
 
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.Map;
 
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -39,6 +42,58 @@ public class ShopOrderController {
         data.put("totalCent", result.totalCent());
         data.put("createdAt", result.createdAt());
         return ApiResponse.success(data);
+    }
+
+    /** 订单详情（含条目） */
+    @GetMapping("/{id}")
+    public ApiResponse<Map<String, Object>> detail(
+            @PathVariable("id") String id,
+            @RequestHeader(value = "Authorization", required = false) String auth) {
+        String userId = authSupport.resolveUserId(auth);
+        var d = shopCommerceService.getOrderDetail(userId, id);
+        return ApiResponse.success(toDetailMap(d));
+    }
+
+    /** 模拟支付 */
+    @PostMapping("/{id}/pay")
+    public ApiResponse<Map<String, Object>> pay(
+            @PathVariable("id") String id,
+            @RequestHeader(value = "Authorization", required = false) String auth) {
+        String userId = authSupport.resolveUserId(auth);
+        var d = shopCommerceService.payOrder(userId, id);
+        return ApiResponse.success("支付成功", toDetailMap(d));
+    }
+
+    /** 取消订单（仅待支付，恢复库存） */
+    @PostMapping("/{id}/cancel")
+    public ApiResponse<Map<String, Object>> cancel(
+            @PathVariable("id") String id,
+            @RequestHeader(value = "Authorization", required = false) String auth) {
+        String userId = authSupport.resolveUserId(auth);
+        var d = shopCommerceService.cancelOrder(userId, id);
+        return ApiResponse.success("订单已取消", toDetailMap(d));
+    }
+
+    private Map<String, Object> toDetailMap(ShopCommerceService.OrderDetail d) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("orderId", d.orderId());
+        map.put("orderNo", d.orderNo());
+        map.put("status", d.status());
+        map.put("totalCent", d.totalCent());
+        map.put("addressId", d.addressId());
+        map.put("remark", d.remark());
+        map.put("createdAt", d.createdAt());
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (ShopCommerceService.OrderItemLine item : d.items()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("productId", item.productId());
+            m.put("productName", item.productName());
+            m.put("unitPriceCent", item.unitPriceCent());
+            m.put("quantity", item.quantity());
+            items.add(m);
+        }
+        map.put("items", items);
+        return map;
     }
 
     @GetMapping

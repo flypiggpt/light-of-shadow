@@ -7,5 +7,8 @@
     VALUES (#{orderId}, #{productId}, #{productName}, #{unitPriceCent}, #{quantity})
   </insert>
 
+  <select id="selectByOrderId" resultMap="OrderItemResult">
+    SELECT * FROM shop_order_item WHERE order_id = #{orderId} ORDER BY id ASC
+  </select>
 </mapper>
 

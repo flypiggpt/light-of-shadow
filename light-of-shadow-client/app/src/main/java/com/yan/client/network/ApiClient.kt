@@ -376,6 +376,69 @@ object ApiClient {
         return post("/shoppingguide/sessions/$sessionId/messages", body, getAuthHeaders())
     }
 
+    /**
+     * GET /api/shop/orders/{id} 订单详情
+     */
+    @Throws(Exception::class)
+    fun getOrderDetail(orderId: String): ApiResponse {
+        return get("/shop/orders/$orderId", getAuthHeaders())
+    }
+
+    /**
+     * POST /api/shop/orders/{id}/pay 模拟支付
+     */
+    @Throws(Exception::class)
+    fun payOrder(orderId: String): ApiResponse {
+        return post("/shop/orders/$orderId/pay", JSONObject(), getAuthHeaders())
+    }
+
+    /**
+     * POST /api/shop/orders/{id}/cancel 取消订单
+     */
+    @Throws(Exception::class)
+    fun cancelOrder(orderId: String): ApiResponse {
+        return post("/shop/orders/$orderId/cancel", JSONObject(), getAuthHeaders())
+    }
+
+    /**
+     * GET /api/shop/addresses
+     */
+    @Throws(Exception::class)
+    fun listAddresses(): ApiResponse {
+        return get("/shop/addresses", getAuthHeaders())
+    }
+
+    /**
+     * POST /api/shop/addresses 新增/更新地址
+     */
+    @Throws(Exception::class)
+    fun saveAddress(id: String?, receiverName: String, phone: String, detail: String, isDefault: Boolean): ApiResponse {
+        val body = JSONObject().apply {
+            if (id != null) put("id", id)
+            put("receiverName", receiverName)
+            put("phone", phone)
+            put("detail", detail)
+            put("isDefault", isDefault)
+        }
+        return post("/shop/addresses", body, getAuthHeaders())
+    }
+
+    /**
+     * DELETE /api/shop/addresses/{id}
+     */
+    @Throws(Exception::class)
+    fun deleteAddress(addressId: String): ApiResponse {
+        return delete("/shop/addresses/$addressId", getAuthHeaders())
+    }
+
+    /**
+     * GET /api/shop/products/{id} 商品详情
+     */
+    @Throws(Exception::class)
+    fun getShopProduct(id: String): ApiResponse {
+        return get("/shop/products/$id", getAuthHeaders())
+    }
+
     // ===================== Utility Methods =====================
 
     /**
