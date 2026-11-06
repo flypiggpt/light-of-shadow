@@ -10,6 +10,8 @@ import java.util.List;
 public interface ProductMapper {
     void insert(ProductEntity product);
 
+    List<ProductEntity> selectByIds(@Param("ids") List<String> ids);
+
     ProductEntity selectById(@Param("id") String id);
 
     int decreaseStockIfEnough(@Param("id") String id, @Param("quantity") int quantity);

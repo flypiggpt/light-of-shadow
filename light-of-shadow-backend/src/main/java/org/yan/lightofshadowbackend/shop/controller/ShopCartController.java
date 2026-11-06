@@ -43,14 +43,21 @@ public class ShopCartController {
     }
 
     @PostMapping("/items")
-    public ApiResponse<Map<String, String>> add(@RequestBody AddCartItemRequest request,
+    public ApiResponse<Map<String, Object>> add(@RequestBody AddCartItemRequest request,
             @RequestHeader(value = "Authorization", required = false) String auth) {
         if (request == null || request.productId() == null) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "参数错误");
         }
         String userId = authSupport.resolveUserId(auth);
         var line = shopCommerceService.addCartItem(userId, request.productId(), request.quantity() == null ? 0 : request.quantity());
-        return ApiResponse.success(Map.of("itemId", line.itemId()));
+        // 返回完整购物车行，客户端可本地插入，无需再拉全量
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("itemId", line.itemId());
+        data.put("productId", line.productId());
+        data.put("productName", line.productName());
+        data.put("quantity", line.quantity());
+        data.put("unitPriceCent", line.unitPriceCent());
+        return ApiResponse.success(data);
     }
 
     @PatchMapping("/items/{itemId}")

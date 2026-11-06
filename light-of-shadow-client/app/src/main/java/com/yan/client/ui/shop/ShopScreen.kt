@@ -238,17 +238,44 @@ fun ShopScreen(
 
     fun addToCart(product: ShopProduct) {
         scope.launch {
+            // 乐观更新：先本地插入，体验即时；失败再回滚
+            val optimisticLine = CartLine(
+                itemId = "tmp_${System.currentTimeMillis()}",
+                productId = product.id,
+                productName = product.name,
+                quantity = 1,
+                unitPriceCent = product.priceCent
+            )
+            val snapshot = cartLines
+            cartLines = cartLines.filterNot { it.productId == product.id } +
+                    optimisticLine.copy(quantity = (cartLines.firstOrNull { it.productId == product.id }?.quantity ?: 0) + 1)
+
             try {
                 val resp = withContext(Dispatchers.IO) {
                     ApiClient.addShopCartItem(productId = product.id, quantity = 1)
                 }
                 if (resp.code == 0) {
+                    // 用服务端返回替换乐观行
+                    val data = resp.data
+                    if (data != null && data.has("itemId")) {
+                        val serverLine = CartLine(
+                            itemId = data.optString("itemId"),
+                            productId = data.optString("productId", product.id),
+                            productName = data.optString("productName", product.name),
+                            quantity = data.optInt("quantity", 1),
+                            unitPriceCent = data.optLong("unitPriceCent", product.priceCent)
+                        )
+                        cartLines = cartLines.filterNot {
+                            it.productId == product.id && it.itemId.startsWith("tmp_")
+                        }.filterNot { it.productId == serverLine.productId } + serverLine
+                    }
                     showMessage("已加入购物车：${product.name}")
-                    refreshCart()
                 } else {
+                    cartLines = snapshot
                     showMessage(resp.message ?: "加入购物车失败 (code=${resp.code})")
                 }
             } catch (e: Exception) {
+                cartLines = snapshot
                 showMessage("加入购物车失败：${e.message ?: "未知错误"}")
             }
         }
@@ -459,14 +486,16 @@ fun ShopScreen(
     }
 
     LaunchedEffect(Unit) {
+        // 按需加载：进页只拉默认 Tab，减少并发请求
         refreshProducts()
-        refreshCart()
-        refreshOrders()
     }
 
     LaunchedEffect(currentTab) {
-        if (currentTab == ShopTab.Guide && guideSessionId.isNullOrBlank()) {
-            ensureGuideSessionId()
+        when (currentTab) {
+            ShopTab.Cart -> refreshCart()
+            ShopTab.Orders -> refreshOrders()
+            ShopTab.Guide -> if (guideSessionId.isNullOrBlank()) ensureGuideSessionId()
+            ShopTab.Products -> Unit
         }
     }
 

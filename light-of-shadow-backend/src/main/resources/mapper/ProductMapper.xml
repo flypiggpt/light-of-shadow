@@ -104,5 +104,10 @@
     WHERE id = #{id} AND merchant_id = #{merchantId}
   </delete>
 
+  <select id="selectByIds" resultMap="ProductResult">
+    SELECT * FROM product
+    WHERE id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+  </select>
 </mapper>
 
