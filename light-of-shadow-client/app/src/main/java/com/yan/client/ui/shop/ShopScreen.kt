@@ -71,13 +71,20 @@ private enum class ShopTab {
     Guide
 }
 
-private data class ShopProduct(
+internal data class ShopProduct(
     val id: String,
     val name: String,
     val description: String,
     val priceCent: Long,
     val stock: Int,
     val coverUrl: String?
+)
+
+private data class OrderItemViewData(val productId: String, val productName: String, val unitPriceCent: Long, val quantity: Int)
+
+private data class OrderDetailData(
+    val orderId: String, val orderNo: String, val status: String,
+    val totalCent: Long, val remark: String?, val items: List<OrderItemViewData>
 )
 
 private data class CartLine(
@@ -127,6 +134,15 @@ fun ShopScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     var currentTab by rememberSaveable { mutableStateOf(ShopTab.Products) }
+    // 子页面：商品详情 / 订单确认 / 订单详情 / 地址管理
+    var subRoute by remember { mutableStateOf<String?>(null) }
+    var detailProduct by remember { mutableStateOf<ShopProduct?>(null) }
+    var detailProductLoading by remember { mutableStateOf(false) }
+    var orderDetail by remember { mutableStateOf<OrderDetailData?>(null) }
+    var orderDetailLoading by remember { mutableStateOf(false) }
+    var addresses by remember { mutableStateOf(emptyList<AddressItem>()) }
+    var selectedAddressId by remember { mutableStateOf<String?>(null) }
+    var confirmSubmitting by remember { mutableStateOf(false) }
     var keyword by rememberSaveable { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
 
@@ -235,6 +251,147 @@ fun ShopScreen(
             }
         }
     }
+
+    fun loadProductDetail(productId: String) {
+        subRoute = "product_detail"
+        detailProductLoading = true
+        scope.launch {
+            try {
+                val resp = withContext(Dispatchers.IO) { ApiClient.getShopProduct(productId) }
+                if (resp.code == 0) {
+                    val d = resp.data ?: JSONObject()
+                    detailProduct = ShopProduct(
+                        id = d.optString("id", productId),
+                        name = d.optString("name", "未命名商品"),
+                        description = d.optString("description", ""),
+                        priceCent = d.optLong("priceCent", 0L),
+                        stock = d.optInt("stock", 0),
+                        coverUrl = d.optString("coverUrl").takeIf { it.isNotBlank() }
+                    )
+                } else {
+                    showMessage(resp.message ?: "加载商品失败")
+                    subRoute = null
+                }
+            } catch (e: Exception) {
+                showMessage("加载商品失败：${e.message ?: "未知错误"}")
+                subRoute = null
+            } finally {
+                detailProductLoading = false
+            }
+        }
+    }
+
+    fun loadAddresses(callback: (() -> Unit)? = null) {
+        scope.launch {
+            try {
+                val resp = withContext(Dispatchers.IO) { ApiClient.listAddresses() }
+                if (resp.code == 0) {
+                    val items = resp.data?.optJSONArray("items")
+                    val list = mutableListOf<AddressItem>()
+                    if (items != null) {
+                        for (i in 0 until items.length()) {
+                            val o = items.optJSONObject(i) ?: continue
+                            list.add(AddressItem(
+                                id = o.optString("id"),
+                                receiverName = o.optString("receiverName"),
+                                phone = o.optString("phone"),
+                                detail = o.optString("detail"),
+                                isDefault = o.optBoolean("isDefault", false)
+                            ))
+                        }
+                    }
+                    addresses = list
+                    if (selectedAddressId == null) {
+                        selectedAddressId = list.find { it.isDefault }?.id ?: list.firstOrNull()?.id
+                    }
+                    callback?.invoke()
+                }
+            } catch (e: Exception) {
+                showMessage("加载地址失败：${e.message ?: "未知错误"}")
+            }
+        }
+    }
+
+    fun loadOrderDetail(orderId: String) {
+        subRoute = "order_detail"
+        orderDetailLoading = true
+        scope.launch {
+            try {
+                val resp = withContext(Dispatchers.IO) { ApiClient.getOrderDetail(orderId) }
+                if (resp.code == 0) {
+                    val d = resp.data ?: JSONObject()
+                    val itemsArr = d.optJSONArray("items")
+                    val items = mutableListOf<OrderItemViewData>()
+                    if (itemsArr != null) {
+                        for (i in 0 until itemsArr.length()) {
+                            val o = itemsArr.optJSONObject(i) ?: continue
+                            items.add(OrderItemViewData(
+                                productId = o.optString("productId"),
+                                productName = o.optString("productName"),
+                                unitPriceCent = o.optLong("unitPriceCent", 0L),
+                                quantity = o.optInt("quantity", 1)
+                            ))
+                        }
+                    }
+                    orderDetail = OrderDetailData(
+                        orderId = d.optString("orderId", orderId),
+                        orderNo = d.optString("orderNo"),
+                        status = d.optString("status"),
+                        totalCent = d.optLong("totalCent", 0L),
+                        remark = d.optString("remark").takeIf { it.isNotBlank() },
+                        items = items
+                    )
+                } else {
+                    showMessage(resp.message ?: "加载订单失败")
+                    subRoute = null
+                }
+            } catch (e: Exception) {
+                showMessage("加载订单失败：${e.message ?: "未知错误"}")
+                subRoute = null
+            } finally {
+                orderDetailLoading = false
+            }
+        }
+    }
+
+    fun startCheckout() {
+        subRoute = "order_confirm"
+        loadAddresses()
+    }
+
+    fun submitOrder() {
+        val addrId = selectedAddressId
+        if (addrId == null) {
+            scope.launch { showMessage("请先选择收货地址") }
+            return
+        }
+        confirmSubmitting = true
+        scope.launch {
+            try {
+                val resp = withContext(Dispatchers.IO) {
+                    ApiClient.checkoutShopCart(addressId = addrId)
+                }
+                if (resp.code == 0) {
+                    showMessage("下单成功")
+                    refreshCart()
+                    refreshOrders()
+                    subRoute = null
+                    currentTab = ShopTab.Orders
+                    val orderId = resp.data?.optString("orderId")
+                    if (!orderId.isNullOrBlank()) {
+                        loadOrderDetail(orderId)
+                    }
+                } else {
+                    showMessage(resp.message ?: "下单失败")
+                }
+            } catch (e: Exception) {
+                showMessage("下单失败：${e.message ?: "未知错误"}")
+            } finally {
+                confirmSubmitting = false
+            }
+        }
+    }
+
 
     fun addToCart(product: ShopProduct) {
         scope.launch {
@@ -529,7 +686,126 @@ fun ShopScreen(
                 onSelect = { currentTab = it }
             )
 
-            when (currentTab) {
+            // 子页面优先显示
+            when (subRoute) {
+                "product_detail" -> ProductDetailContent(
+                    product = detailProduct,
+                    loading = detailProductLoading,
+                    onBack = { subRoute = null },
+                    onAddCart = {
+                        detailProduct?.let { addToCart(it) }
+                        subRoute = null
+                    }
+                )
+                "order_confirm" -> OrderConfirmContent(
+                    items = cartLines.map {
+                        OrderItemView(it.productId, it.productName, it.unitPriceCent, it.quantity)
+                    },
+                    totalCent = cartLines.sumOf { it.unitPriceCent * it.quantity },
+                    addresses = addresses,
+                    selectedAddressId = selectedAddressId,
+                    onSelectAddress = {
+                        loadAddresses { subRoute = "address" }
+                    },
+                    onConfirm = { submitOrder() },
+                    onBack = { subRoute = null },
+                    submitting = confirmSubmitting
+                )
+                "order_detail" -> OrderDetailContent(
+                    orderNo = orderDetail?.orderNo ?: "",
+                    status = orderDetail?.status ?: "",
+                    totalCent = orderDetail?.totalCent ?: 0L,
+                    remark = orderDetail?.remark,
+                    items = orderDetail?.items?.map {
+                        OrderItemView(it.productId, it.productName, it.unitPriceCent, it.quantity)
+                    } ?: emptyList(),
+                    loading = orderDetailLoading,
+                    canPay = orderDetail?.status == "PENDING_PAYMENT",
+                    canCancel = orderDetail?.status == "PENDING_PAYMENT",
+                    onPay = {
+                        val id = orderDetail?.orderId ?: return@OrderDetailContent
+                        orderDetailLoading = true
+                        scope.launch {
+                            try {
+                                val resp = withContext(Dispatchers.IO) { ApiClient.payOrder(id) }
+                                if (resp.code == 0) {
+                                    showMessage("支付成功")
+                                    loadOrderDetail(id)
+                                    refreshOrders()
+                                } else {
+                                    showMessage(resp.message ?: "支付失败")
+                                }
+                            } catch (e: Exception) {
+                                showMessage("支付失败：${e.message ?: "未知错误"}")
+                            } finally {
+                                orderDetailLoading = false
+                            }
+                        }
+                    },
+                    onCancel = {
+                        val id = orderDetail?.orderId ?: return@OrderDetailContent
+                        orderDetailLoading = true
+                        scope.launch {
+                            try {
+                                val resp = withContext(Dispatchers.IO) { ApiClient.cancelOrder(id) }
+                                if (resp.code == 0) {
+                                    showMessage("订单已取消")
+                                    loadOrderDetail(id)
+                                    refreshOrders()
+                                } else {
+                                    showMessage(resp.message ?: "取消失败")
+                                }
+                            } catch (e: Exception) {
+                                showMessage("取消失败：${e.message ?: "未知错误"}")
+                            } finally {
+                                orderDetailLoading = false
+                            }
+                        }
+                    },
+                    onBack = { subRoute = null }
+                )
+                "address" -> AddressListContent(
+                    addresses = addresses,
+                    selectedId = selectedAddressId,
+                    onSelect = {
+                        selectedAddressId = it.id
+                        subRoute = "order_confirm"
+                    },
+                    onSave = { id, name, phone, detail, isDefault ->
+                        scope.launch {
+                            try {
+                                val resp = withContext(Dispatchers.IO) {
+                                    ApiClient.saveAddress(id, name, phone, detail, isDefault)
+                                }
+                                if (resp.code == 0) {
+                                    showMessage("地址已保存")
+                                    loadAddresses()
+                                } else {
+                                    showMessage(resp.message ?: "保存失败")
+                                }
+                            } catch (e: Exception) {
+                                showMessage("保存失败：${e.message ?: "未知错误"}")
+                            }
+                        }
+                    },
+                    onDelete = { addrId ->
+                        scope.launch {
+                            try {
+                                val resp = withContext(Dispatchers.IO) { ApiClient.deleteAddress(addrId) }
+                                if (resp.code == 0) {
+                                    showMessage("已删除")
+                                    loadAddresses()
+                                } else {
+                                    showMessage(resp.message ?: "删除失败")
+                                }
+                            } catch (e: Exception) {
+                                showMessage("删除失败：${e.message ?: "未知错误"}")
+                            }
+                        }
+                    },
+                    onBack = { subRoute = "order_confirm" }
+                )
+                else -> when (currentTab) {
                 ShopTab.Products -> {
                     ProductList(
                         products = products,
@@ -538,7 +814,8 @@ fun ShopScreen(
                         onLoadMore = { loadMoreProducts() },
                         loading = loading,
                         onRefresh = { refreshProducts() },
-                        onAddCart = { addToCart(it) }
+                        onAddCart = { addToCart(it) },
+                        onProductClick = { loadProductDetail(it) }
                     )
                 }
 
@@ -549,14 +826,15 @@ fun ShopScreen(
                         onIncrease = { updateQuantity(it, it.quantity + 1) },
                         onDecrease = { updateQuantity(it, it.quantity - 1) },
                         onRemove = { removeCartItem(it) },
-                        onCheckout = { checkout() }
+                        onCheckout = { startCheckout() }
                     )
                 }
 
                 ShopTab.Orders -> {
                     OrderList(
                         orders = orders,
-                        onRefresh = { refreshOrders() }
+                        onRefresh = { refreshOrders() },
+                        onOrderClick = { loadOrderDetail(it) }
                     )
                 }
 
@@ -571,6 +849,7 @@ fun ShopScreen(
                         actions = guideActions,
                         onActionClick = { onGuideAction(it) }
                     )
+                }
                 }
             }
         }
@@ -697,7 +976,8 @@ private fun ProductList(
     onLoadMore: () -> Unit = {},
     loading: Boolean,
     onRefresh: () -> Unit,
-    onAddCart: (ShopProduct) -> Unit
+    onAddCart: (ShopProduct) -> Unit,
+    onProductClick: (String) -> Unit = {}
 ) {
     if (products.isEmpty()) {
         EmptyState(
@@ -726,7 +1006,12 @@ private fun ProductList(
                             contentScale = ContentScale.Crop
                         )
                     }
-                    Text(product.name, color = DarkGoldTextPrimary, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        product.name,
+                        color = DarkGoldHighlight,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.clickable { onProductClick(product.id) }
+                    )
                     Text(product.description, color = DarkGoldTextSecondary, style = MaterialTheme.typography.bodySmall)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1042,7 +1327,8 @@ private fun CartList(
 @Composable
 private fun OrderList(
     orders: List<ShopOrder>,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onOrderClick: (String) -> Unit = {}
 ) {
     if (orders.isEmpty()) {
         EmptyState(
@@ -1055,7 +1341,7 @@ private fun OrderList(
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         items(orders, key = { it.orderId }) { order ->
-            GoldCard {
+            GoldCard(modifier = Modifier.clickable { onOrderClick(order.orderId) }) {
                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(
                         text = stringResource(R.string.shop_order_no_template, order.orderNo),
@@ -1115,9 +1401,9 @@ private fun EmptyState(
 }
 
 @Composable
-private fun GoldCard(content: @Composable () -> Unit) {
+private fun GoldCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .shadow(8.dp, RoundedCornerShape(20.dp), ambientColor = Color.Black.copy(alpha = 0.2f), spotColor = Color.Black.copy(alpha = 0.32f))
             .background(DarkGoldCard, RoundedCornerShape(20.dp))
@@ -1277,7 +1563,7 @@ private fun JSONObject?.extractObject(key: String): JSONObject? {
     return this.optJSONObject(key)
 }
 
-private fun resolveMediaUrl(url: String?): String? {
+internal fun resolveMediaUrl(url: String?): String? {
     val normalized = url?.trim()?.takeIf { it.isNotBlank() } ?: return null
     return if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
         normalized
@@ -1286,6 +1572,6 @@ private fun resolveMediaUrl(url: String?): String? {
     }
 }
 
-private fun centsToPrice(cents: Long): String {
+internal fun centsToPrice(cents: Long): String {
     return "¥%.2f".format(cents / 100.0)
 }

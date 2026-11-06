@@ -35,5 +35,30 @@ public interface ShopCommerceService {
     CheckoutResult checkout(String userId, CheckoutOrderRequest request);
 
     OrderPage listOrders(String userId, int page, int size, String status);
+
+    record OrderItemLine(String productId, String productName, int unitPriceCent, int quantity) {
+    }
+
+    record OrderDetail(String orderId, String orderNo, String status, long totalCent,
+                       String addressId, String remark, Instant createdAt,
+                       List<OrderItemLine> items) {
+    }
+
+    OrderDetail getOrderDetail(String userId, String orderId);
+
+    /** 模拟支付：PENDING_PAYMENT → PAID */
+    OrderDetail payOrder(String userId, String orderId);
+
+    /** 取消订单（仅 PENDING_PAYMENT），恢复库存 */
+    OrderDetail cancelOrder(String userId, String orderId);
+
+    record AddressLine(String id, String receiverName, String phone, String detail, boolean isDefault) {
+    }
+
+    List<AddressLine> listAddresses(String userId);
+
+    AddressLine saveAddress(String userId, String id, String receiverName, String phone, String detail, boolean isDefault);
+
+    void deleteAddress(String userId, String addressId);
 }
 

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.yan.lightofshadowbackend.shop.mapper.UserAddressMapper">
+
+    <resultMap id="AddressResult" type="org.yan.lightofshadowbackend.shop.entity.UserAddressEntity">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="receiver_name" property="receiverName"/>
+        <result column="phone" property="phone"/>
+        <result column="detail" property="detail"/>
+        <result column="is_default" property="isDefault"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO user_address (id, user_id, receiver_name, phone, detail, is_default, created_at, updated_at)
+        VALUES (#{id}, #{userId}, #{receiverName}, #{phone}, #{detail}, #{isDefault}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="selectByUserId" resultMap="AddressResult">
+        SELECT * FROM user_address WHERE user_id = #{userId}
+        ORDER BY is_default DESC, updated_at DESC
+    </select>
+
+    <select id="selectByIdAndUserId" resultMap="AddressResult">
+        SELECT * FROM user_address WHERE id = #{id} AND user_id = #{userId} LIMIT 1
+    </select>
+
+    <update id="updateById">
+        UPDATE user_address
+        SET receiver_name = #{receiverName}, phone = #{phone}, detail = #{detail},
+            is_default = #{isDefault}, updated_at = #{updatedAt}
+        WHERE id = #{id} AND user_id = #{userId}
+    </update>
+
+    <delete id="deleteByIdAndUserId">
+        DELETE FROM user_address WHERE id = #{id} AND user_id = #{userId}
+    </delete>
+
+    <update id="clearDefaultByUserId">
+        UPDATE user_address SET is_default = 0, updated_at = #{now}
+        WHERE user_id = #{userId} AND is_default = 1
+    </update>
+</mapper>

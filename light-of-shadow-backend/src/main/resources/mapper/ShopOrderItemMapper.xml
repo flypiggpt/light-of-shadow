@@ -2,10 +2,23 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.yan.lightofshadowbackend.shop.mapper.ShopOrderItemMapper">
 
+  <resultMap id="OrderItemResult" type="org.yan.lightofshadowbackend.shop.entity.ShopOrderItemEntity">
+    <id column="id" property="id"/>
+    <result column="order_id" property="orderId"/>
+    <result column="product_id" property="productId"/>
+    <result column="product_name" property="productName"/>
+    <result column="unit_price_cent" property="unitPriceCent"/>
+    <result column="quantity" property="quantity"/>
+    <result column="created_at" property="createdAt"/>
+  </resultMap>
+
   <insert id="insert" parameterType="org.yan.lightofshadowbackend.shop.entity.ShopOrderItemEntity" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO shop_order_item (order_id, product_id, product_name, unit_price_cent, quantity)
     VALUES (#{orderId}, #{productId}, #{productName}, #{unitPriceCent}, #{quantity})
   </insert>
 
+  <select id="selectByOrderId" resultMap="OrderItemResult">
+    SELECT * FROM shop_order_item WHERE order_id = #{orderId} ORDER BY id ASC
+  </select>
 </mapper>
 
