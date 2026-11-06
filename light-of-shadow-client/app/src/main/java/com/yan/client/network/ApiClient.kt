@@ -6,11 +6,22 @@ import java.io.BufferedOutputStream
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.lang.StringBuilder
-import java.net.HttpURLConnection
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.net.URL
 import java.net.URLEncoder
 
 object ApiClient {
+    private val httpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .connectionPool(okhttp3.ConnectionPool(5, 5, java.util.concurrent.TimeUnit.MINUTES))
+            .build()
+    }
     private const val TAG = "ApiClient"
     private const val API_BASE_URL = "http://132.232.75.62:8080/api"
     const val MEDIA_BASE_URL = "http://132.232.75.62:8080"
@@ -66,62 +77,39 @@ object ApiClient {
         jsonBody: JSONObject? = null,
         headers: Map<String, String> = emptyMap()
     ): ApiResponse {
-        val url = URL("$API_BASE_URL$path")
-        val conn = (url.openConnection() as HttpURLConnection).apply {
-            requestMethod = method
-            connectTimeout = 10_000
-            readTimeout = 10_000
-            setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            
-            // Add custom headers
-            headers.forEach { (key, value) ->
-                setRequestProperty(key, value)
-            }
-            
-            // Only set doOutput for methods that have a body
-            if (method in listOf("POST", "PUT", "PATCH") && jsonBody != null) {
-                doOutput = true
-            }
+        val url = "$API_BASE_URL$path"
+        val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+        val body = when {
+            method in listOf("POST", "PUT", "PATCH") && jsonBody != null ->
+                jsonBody.toString().toRequestBody(jsonMediaType)
+            method in listOf("POST", "PUT", "PATCH") ->
+                "{}".toRequestBody(jsonMediaType)
+            else -> null
         }
 
-        try {
-            // Write body if present
-            if (jsonBody != null && method in listOf("POST", "PUT", "PATCH")) {
-                BufferedOutputStream(conn.outputStream).use { out ->
-                    val bytes = jsonBody.toString().toByteArray(Charsets.UTF_8)
-                    out.write(bytes)
-                    out.flush()
-                }
-            }
+        val builder = Request.Builder().url(url)
+        if (method !in listOf("POST", "PUT", "PATCH")) {
+            builder.method(method, null)
+        } else {
+            builder.method(method, body)
+        }
+        builder.header("Content-Type", "application/json; charset=utf-8")
+        headers.forEach { (key, value) -> builder.header(key, value) }
 
-            val httpCode = conn.responseCode
-            val reader = if (httpCode in 200..299) BufferedReader(InputStreamReader(conn.inputStream))
-            else BufferedReader(InputStreamReader(conn.errorStream ?: conn.inputStream))
-
-            val sb = StringBuilder()
-            reader.use {
-                var line: String? = it.readLine()
-                while (line != null) {
-                    sb.append(line)
-                    line = it.readLine()
-                }
-            }
-
-            val body = sb.toString()
-            Log.d(TAG, "$method $path -> $httpCode: $body")
+        httpClient.newCall(builder.build()).execute().use { resp ->
+            val httpCode = resp.code
+            val respBody = resp.body?.string() ?: ""
+            Log.d(TAG, "$method $path -> $httpCode: $respBody")
 
             return try {
-                val parsed = JSONObject(body)
+                val parsed = JSONObject(respBody)
                 val c = parsed.optInt("code", if (httpCode in 200..299) 0 else httpCode)
                 val message = if (parsed.has("message") && !parsed.isNull("message")) parsed.optString("message") else null
                 val data = if (parsed.has("data") && !parsed.isNull("data")) parsed.getJSONObject("data") else null
                 ApiResponse(c, message, data)
             } catch (j: Exception) {
-                // not JSON
-                ApiResponse(if (httpCode in 200..299) 0 else httpCode, body, null)
+                ApiResponse(if (httpCode in 200..299) 0 else httpCode, respBody, null)
             }
-        } finally {
-            conn.disconnect()
         }
     }
 

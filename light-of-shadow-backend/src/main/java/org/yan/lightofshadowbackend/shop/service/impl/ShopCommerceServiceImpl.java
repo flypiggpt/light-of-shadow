@@ -3,7 +3,9 @@ package org.yan.lightofshadowbackend.shop.service.impl;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -46,16 +48,34 @@ public class ShopCommerceServiceImpl implements ShopCommerceService {
     @Transactional(readOnly = true)
     public CartSummary getCart(String userId) {
         List<CartItemEntity> items = cartItemMapper.selectByUserId(userId);
+        // 批量查商品，避免 N+1
+        List<String> productIds = items.stream().map(CartItemEntity::getProductId).distinct().toList();
+        Map<String, ProductEntity> productMap = loadProducts(productIds);
         List<CartLine> lines = new ArrayList<>();
         long total = 0L;
         for (CartItemEntity item : items) {
-            ProductEntity product = requireProduct(item.getProductId());
+            ProductEntity product = productMap.get(item.getProductId());
+            if (product == null) {
+                continue;
+            }
             int quantity = safeQuantity(item.getQuantity());
             lines.add(new CartLine(String.valueOf(item.getId()), product.getId(), product.getName(), quantity, requireInt(product.getPriceCent())));
             total += (long) requireInt(product.getPriceCent()) * quantity;
         }
         lines.sort(Comparator.comparing(CartLine::itemId));
         return new CartSummary(lines, total);
+    }
+
+    private Map<String, ProductEntity> loadProducts(List<String> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return Map.of();
+        }
+        List<ProductEntity> products = productMapper.selectByIds(productIds);
+        Map<String, ProductEntity> map = new HashMap<>();
+        for (ProductEntity p : products) {
+            map.put(p.getId(), p);
+        }
+        return map;
     }
 
     @Override
@@ -103,10 +123,17 @@ public class ShopCommerceServiceImpl implements ShopCommerceService {
             throw new ApiException(ErrorCode.BAD_REQUEST, "购物车为空");
         }
 
+        // 批量查商品，避免 N+1
+        List<String> productIds = cartItems.stream().map(CartItemEntity::getProductId).distinct().toList();
+        Map<String, ProductEntity> productMap = loadProducts(productIds);
+
         long totalCent = 0L;
         List<ShopOrderItemEntity> orderItems = new ArrayList<>();
         for (CartItemEntity cartItem : cartItems) {
-            ProductEntity product = requireProduct(cartItem.getProductId());
+            ProductEntity product = productMap.get(cartItem.getProductId());
+            if (product == null) {
+                throw new ApiException(ErrorCode.NOT_FOUND, "商品不存在");
+            }
             int quantity = safeQuantity(cartItem.getQuantity());
             int unitPrice = requireInt(product.getPriceCent());
             int affected = productMapper.decreaseStockIfEnough(product.getId(), quantity);
