@@ -63,4 +63,12 @@ deepseek:
   model: ${DEEPSEEK_MODEL:deepseek-chat}
   base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
 
+# Python Agent 网关（导购消息转发；不可用时回退本地 LLM）
+agent:
+  base-url: ${AGENT_BASE_URL:http://127.0.0.1:8000}
+  connect-timeout-ms: 2000
+  read-timeout-ms: 35000
+  fallback-enabled: true
+
+
 

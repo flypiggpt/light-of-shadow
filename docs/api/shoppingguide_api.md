@@ -49,6 +49,18 @@ Content-Type: application/json
 - `POST /api/shop/orders`
 - `GET /api/shop/orders`
 
+### 1.4 服务拓扑（网关）
+
+```
+Android ──► Java(8080) ──┬─► Python Agent(8000)   sendMessage / close / profile（LangGraph + 工具 + 记忆偏好）
+                         ├─► 本地 DeepSeek         仅当 Agent 不可用时的回退链路
+                         └─► MySQL sg_session/sg_message（会话与消息历史的权威存储）
+```
+
+- 客户端**只需携带 `Authorization`**；`X-User-Id` 由 Java 从 JWT 解出后注入转发请求
+- sessionId 由 Java 生成并落库，Agent 按需建线程（网关模式）
+- Agent 连接失败/超时/5xx → Java 回退本地 LLM（`agent.fallback-enabled=true` 时），聊天不中断；Agent 业务错误（4xx）直接透传
+
 ---
 
 ## 2. 数据模型

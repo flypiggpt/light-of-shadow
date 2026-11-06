@@ -509,15 +509,47 @@ def _extract_api_payload(
             continue
         data = item.get("data")
         if isinstance(data, dict):
-            recs = data.get("recommendations") or data.get("products") or []
-            if isinstance(recs, list):
-                recommendations.extend(r for r in recs if isinstance(r, dict))
+            recs = _as_recommendations(str(item.get("name") or ""), data)
+            recommendations.extend(recs)
             acts = data.get("actions") or []
             if isinstance(acts, list):
                 actions.extend(a for a in acts if isinstance(a, dict))
         elif isinstance(data, list):
             recommendations.extend(r for r in data if isinstance(r, dict))
     return recommendations, actions
+
+
+def _as_recommendations(tool_name: str, data: dict[str, Any]) -> list[dict[str, Any]]:
+    """商品工具结果 → 契约 Recommendation 形状（订单等其他工具的 items 不会混入）。"""
+    recs = data.get("recommendations") or data.get("products")
+    if isinstance(recs, list):
+        return [r for r in recs if isinstance(r, dict)]
+    if tool_name == "get_product" and data.get("id"):
+        products: list[Any] = [data]
+    elif tool_name == "search_products" and isinstance(data.get("items"), list):
+        products = data["items"]
+    else:
+        return []
+    out: list[dict[str, Any]] = []
+    for product in products:
+        if not isinstance(product, dict):
+            continue
+        product_id = product.get("productId") or product.get("id")
+        if not product_id:
+            continue
+        out.append(
+            {
+                "productId": product_id,
+                "name": product.get("name") or "",
+                "description": product.get("description") or "",
+                "priceCent": product.get("priceCent") or 0,
+                "stock": product.get("stock") or 0,
+                "coverUrl": product.get("coverUrl") or "",
+                "score": product.get("score") if isinstance(product.get("score"), (int, float)) else 0.9,
+                "reason": product.get("reason") or "为你推荐",
+            }
+        )
+    return out
 
 
 def _format_tool_results(results: list[dict[str, Any]]) -> str:

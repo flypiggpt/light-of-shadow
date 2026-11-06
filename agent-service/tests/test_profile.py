@@ -93,6 +93,14 @@ class TestLearnFromTurn:
         learn_from_turn(profile, text="", entities={"preference": "降噪"})
         assert profile.preferences[:2] == ["降噪", "音质"]
 
+    def test_budget_like_preference_dropped(self):
+        """LLM 常把“预算200元”塞进 preference 槽位——清洗掉，预算另有字段。"""
+        profile = UserProfile()
+        learn_from_turn(profile, text="预算 200", entities={"preference": "预算200元", "maxPriceCent": 20000})
+        learn_from_turn(profile, text="", entities={"preference": "500元"})
+        assert profile.preferences == []
+        assert profile.budget_max_cent == 20000
+
 
 # ---------------------------------------------------------------------------
 # 渲染与注入
