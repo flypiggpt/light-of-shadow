@@ -1,12 +1,20 @@
-"""Agent 编排服务：把 HTTP 层与 LangGraph 状态机接起来。"""
+"""Agent 编排服务：把 HTTP 层与 LangGraph 状态机接起来。
+
+S1 记忆偏好：每轮注入用户画像（预算/偏好/购买历史）到意图与回复节点，
+轮后从本轮 entities/文本学习偏好信号；跨会话记住，重复使用时减少追问。
+"""
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from app.agent.graph import AgentDeps, build_agent_graph, invoke_turn
+from app.memory.profile import ProfileStore, UserProfile, render_profile
+
+logger = logging.getLogger("agent-service.agent.service")
 
 
 def _run_async(coro, timeout: float = 30.0):
@@ -87,21 +95,40 @@ class LLMAdapter:
 class AgentOrchestrator:
     """会话生命周期 + 状态机调用的门面。"""
 
-    def __init__(self, deps: AgentDeps, checkpointer: Any = None) -> None:
+    def __init__(
+        self,
+        deps: AgentDeps,
+        checkpointer: Any = None,
+        *,
+        profile_store: ProfileStore | None = None,
+        java_client: Any = None,
+    ) -> None:
         self._deps = deps
         self._graph = build_agent_graph(deps, checkpointer=checkpointer)
         self._sessions: dict[str, SessionRecord] = {}
         self._messages: dict[str, list[dict[str, Any]]] = {}
+        self._profile = profile_store or ProfileStore()
+        self._java = java_client
+        self._auth_token = ""
 
     def create_session(self, user_id: str, entry: str = "shop",
                        source: str = "app", locale: str = "zh-CN") -> dict[str, Any]:
         sid = "sg_" + uuid.uuid4().hex[:16]
         rec = SessionRecord(session_id=sid, user_id=user_id, entry=entry,
                             source=source, locale=locale)
-        rec.welcome_message = "你好，我是商城导购助手。告诉我预算、用途或偏好，我来帮你推荐。"
+        rec.welcome_message = self._welcome_for(user_id)
         self._sessions[sid] = rec
         self._messages[sid] = [{"role": "assistant", "content": rec.welcome_message}]
         return self._session_dict(rec)
+
+    def _welcome_for(self, user_id: str) -> str:
+        """按画像个性化欢迎语（老用户少走引导）。"""
+        base = "你好，我是商城导购助手。"
+        profile = self._profile.load(user_id)
+        if not profile.has_signal():
+            return base + "告诉我预算、用途或偏好，我来帮你推荐。"
+        hint = render_profile(profile)
+        return base + f"我记得你之前的情况（{hint}）。今天想看点什么？"
 
     def get_session(self, session_id: str) -> dict[str, Any] | None:
         rec = self._sessions.get(session_id)
@@ -109,6 +136,7 @@ class AgentOrchestrator:
 
     def set_auth_token(self, token: str) -> None:
         """设置/更新调用 Java 工具的用户 token（请求级透传）。"""
+        self._auth_token = token or ""
         if hasattr(self._deps.tools, "_auth_token"):
             self._deps.tools._auth_token = token
 
@@ -120,6 +148,9 @@ class AgentOrchestrator:
         if rec.status == "ENDED":
             raise ValueError("session_ended")
 
+        profile = self._profile.load(user_id)
+        self._sync_purchase_history(user_id, profile)
+
         result = invoke_turn(
             self._graph,
             session_id=session_id,
@@ -127,7 +158,13 @@ class AgentOrchestrator:
             user_id=user_id,
             request_id=request_id,
             client_context=client_context,
+            user_profile=profile.to_dict(),
         )
+
+        # 轮后学习：预算/偏好/品类记入画像（跨会话生效）
+        turn_intent = result.get("intent") or {}
+        learn_entities = result.get("entities") or turn_intent.get("entities") or {}
+        self._profile.learn(user_id, text=text, entities=learn_entities)
 
         reply = str(result.get("reply") or "")
         recommendations = list(result.get("recommendations") or [])
@@ -168,6 +205,52 @@ class AgentOrchestrator:
         rec.status = "ENDED"
         rec.updated_at = datetime.now(timezone.utc).isoformat()
         return self._session_dict(rec)
+
+    def get_profile(self, user_id: str) -> dict[str, Any]:
+        """读取用户画像（调试/演示用）。"""
+        return self._profile.load(user_id).to_dict()
+
+    def _sync_purchase_history(self, user_id: str, profile: UserProfile) -> None:
+        """拉取最近订单入画像（尽力而为，24h 缓存；失败不影响对话）。"""
+        if self._java is None or not self._profile.orders_stale(profile):
+            return
+        try:
+            orders = _run_async(self._fetch_recent_orders(), timeout=5.0)
+        except Exception as exc:  # noqa: BLE001 —— 购买历史同步失败不阻断对话
+            logger.warning("purchase_sync_failed", user_id=user_id, error=repr(exc))
+            return
+        if orders:
+            self._profile.record_orders(user_id, orders)
+
+    async def _fetch_recent_orders(self) -> list[dict[str, Any]]:
+        """取最近 2 笔订单 + 条目名（先列表后详情，条目名截断）。"""
+        token = self._auth_token or None
+        page = await self._java.list_orders(page=1, size=2, user_token=token)
+        summaries: list[dict[str, Any]] = []
+        for order in (page or {}).get("items") or []:
+            if not isinstance(order, dict):
+                continue
+            item_names: list[str] = []
+            order_id = order.get("orderId")
+            if order_id:
+                try:
+                    detail = await self._java.get_order(order_id=str(order_id), user_token=token)
+                except Exception:  # noqa: BLE001 —— 详情失败只记订单摘要
+                    detail = None
+                for item in (detail or {}).get("items") or []:
+                    name = str(item.get("productName") or item.get("name") or "").strip()
+                    if name:
+                        item_names.append(name[:20])
+            summaries.append(
+                {
+                    "orderNo": order.get("orderNo"),
+                    "status": order.get("status"),
+                    "totalCent": order.get("totalCent"),
+                    "createdAt": order.get("createdAt"),
+                    "items": item_names,
+                }
+            )
+        return summaries
 
     def _session_dict(self, rec: SessionRecord) -> dict[str, Any]:
         return {

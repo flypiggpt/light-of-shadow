@@ -12,6 +12,8 @@ import json
 import logging
 from typing import Any, Callable, Mapping
 
+from app.memory.profile import UserProfile, render_profile, wrap_profile_block
+
 from .prompts import (
     ANSWER_SYSTEM_PROMPT,
     CLARIFY_SYSTEM_PROMPT,
@@ -160,8 +162,13 @@ def make_nodes(deps: AgentDeps) -> dict[str, Callable[[Mapping[str, Any]], dict[
 
     def intent_node(state: Mapping[str, Any]) -> dict[str, Any]:
         text = sanitize_user_text(last_user_text(state))
+        profile = _profile_of(state)
         history = deps.window.render(list(state.get("messages") or []))
-        messages = build_llm_messages(history, system_prompt=INTENT_SYSTEM_PROMPT)
+        messages = build_llm_messages(
+            history,
+            system_prompt=INTENT_SYSTEM_PROMPT,
+            profile_block=wrap_profile_block(profile),
+        )
         # LLM 异常向上传播（safe_node → degrade 节点降级话术）；
         # 仅当返回内容无法解析时才走规则启发式续流。
         raw = deps.llm.chat(messages, timeout=deps.llm_timeout)
@@ -174,12 +181,18 @@ def make_nodes(deps: AgentDeps) -> dict[str, Callable[[Mapping[str, Any]], dict[
         entities = parsed.get("entities") if isinstance(parsed.get("entities"), dict) else {}
         confidence = parsed.get("confidence")
         confidence = float(confidence) if isinstance(confidence, (int, float)) else 0.5
-        missing = [s for s in (parsed.get("missing_slots") or []) if isinstance(s, str)]
+        missing_raw = [s for s in (parsed.get("missing_slots") or []) if isinstance(s, str)]
+        # 画像已覆盖的槽位不算缺失（重复使用少追问）
+        missing = [s for s in missing_raw if not _slot_satisfied(s, profile)]
         needs_clarify = bool(parsed.get("needs_clarify")) or (
             name in ("recommend_product", "search_product") and confidence < 0.5
         )
         if needs_clarify and not missing:
-            missing = ["想买的品类或用途"]
+            # 仅当 LLM 没说缺什么、且连品类线索都没有时，才兜底追问品类/用途
+            if not missing_raw and not entities.get("keyword"):
+                missing = ["想买的品类或用途"]
+        if not missing:
+            needs_clarify = False
 
         return {
             "intent": {"name": name, "confidence": confidence, "entities": entities},
@@ -274,6 +287,7 @@ def make_nodes(deps: AgentDeps) -> dict[str, Callable[[Mapping[str, Any]], dict[
                 history,
                 system_prompt=ANSWER_SYSTEM_PROMPT,
                 user_suffix=tool_summary or None,
+                profile_block=wrap_profile_block(_profile_of(state)),
             )
             raw = filter_output(deps.llm.chat(messages, timeout=deps.llm_timeout))
             if raw:
@@ -312,6 +326,24 @@ def make_nodes(deps: AgentDeps) -> dict[str, Callable[[Mapping[str, Any]], dict[
 
 
 # ---- 内部辅助 ----
+
+
+def _profile_of(state: Mapping[str, Any]) -> UserProfile:
+    """状态里的画像快照（dict）转成 UserProfile，缺失时返回空画像。"""
+    return UserProfile.from_dict(state.get("user_profile") or {})
+
+
+def _slot_satisfied(slot: str, profile: UserProfile) -> bool:
+    """画像是否已覆盖该缺失槽位（只认粘性事实，不认本轮关键词）。"""
+    if slot in ("maxPriceCent", "budget", "预算上限", "预算"):
+        return profile.budget_max_cent is not None
+    if slot in ("minPriceCent", "预算下限"):
+        return profile.budget_min_cent is not None
+    if slot in ("preference", "偏好的特性"):
+        return bool(profile.preferences)
+    if slot in ("brand", "品牌"):
+        return bool(profile.brands)
+    return False
 
 
 def _normalize_intent(raw: str) -> str:
@@ -354,6 +386,7 @@ def _build_tool_args(intent_name: str, state: Mapping[str, Any]) -> dict[str, An
     entities = dict(state.get("entities") or {})
     text = sanitize_user_text(last_user_text(state))
     tool_name = INTENT_TOOL_MAP[intent_name]
+    profile = _profile_of(state)
 
     def pick(*keys: str) -> Any:
         for key in keys:
@@ -373,6 +406,11 @@ def _build_tool_args(intent_name: str, state: Mapping[str, Any]) -> dict[str, An
             value = pick(src)
             if value is not None:
                 args[dst] = value
+        # 画像预算兜底：本轮没说预算时沿用历史预算，搜索更贴合用户
+        if "min_price_cent" not in args and profile.budget_min_cent is not None:
+            args["min_price_cent"] = profile.budget_min_cent
+        if "max_price_cent" not in args and profile.budget_max_cent is not None:
+            args["max_price_cent"] = profile.budget_max_cent
         return args
     if tool_name == "compare":
         ids = pick("productIds", "product_id") or pick("productId")
