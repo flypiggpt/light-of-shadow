@@ -377,6 +377,15 @@ object ApiClient {
     }
 
     /**
+     * POST /api/shoppingguide/sessions/{sessionId}/close
+     * Close a shopping guide session (best-effort, new-chat flow).
+     */
+    @Throws(Exception::class)
+    fun closeShoppingGuideSession(sessionId: String): ApiResponse {
+        return post("/shoppingguide/sessions/$sessionId/close", JSONObject(), getAuthHeaders())
+    }
+
+    /**
      * GET /api/shop/orders/{id} 订单详情
      */
     @Throws(Exception::class)
