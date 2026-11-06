@@ -159,6 +159,27 @@ class FeedbackData(CamelModel):
     saved: bool
 
 
+class RecentOrder(CamelModel):
+    order_no: str | None = None
+    status: str | None = None
+    total_cent: int | None = None
+    created_at: str | None = None
+    items: list[str] = Field(default_factory=list)
+
+
+class UserProfileData(CamelModel):
+    """用户画像（S1 记忆偏好）：预算 / 偏好 / 品类 / 品牌 / 最近购买。"""
+
+    budget_min_cent: int | None = None
+    budget_max_cent: int | None = None
+    categories: list[str] = Field(default_factory=list)
+    preferences: list[str] = Field(default_factory=list)
+    brands: list[str] = Field(default_factory=list)
+    recent_orders: list[RecentOrder] = Field(default_factory=list)
+    orders_synced_at: str | None = None
+    updated_at: str | None = None
+
+
 # ---------------------------------------------------------------------------
 # 路由
 # ---------------------------------------------------------------------------
@@ -275,3 +296,14 @@ async def compare_products(body: CompareRequest) -> ApiResponse[CompareData]:
 )
 async def submit_feedback(body: FeedbackRequest) -> ApiResponse[FeedbackData]:
     raise HTTPException(status_code=501, detail="反馈收集尚未接入 Agent 编排")
+
+
+@router.get(
+    "/profile",
+    response_model=ApiResponse[UserProfileData],
+    summary="获取用户画像（记忆偏好）",
+)
+async def get_profile(request: Request) -> ApiResponse[UserProfileData]:
+    orch = request.app.state.orchestrator
+    user_id = request.headers.get("X-User-Id", "anonymous")
+    return ApiResponse(data=UserProfileData.model_validate(orch.get_profile(user_id)))

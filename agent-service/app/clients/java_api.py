@@ -170,6 +170,42 @@ class JavaApiClient:
             request_id=request_id,
         )
 
+    async def list_orders(
+        self,
+        *,
+        page: int = 1,
+        size: int = 20,
+        status: str | None = None,
+        user_token: str | None = None,
+        request_id: str | None = None,
+    ) -> dict[str, Any]:
+        """GET /api/shop/orders 我的订单列表（购买历史来源）。"""
+        params: dict[str, Any] = {"page": page, "size": size}
+        if status:
+            params["status"] = status
+        return await self._request_json(
+            "GET",
+            "/api/shop/orders",
+            params=params,
+            user_token=user_token,
+            request_id=request_id,
+        )
+
+    async def get_order(
+        self,
+        *,
+        order_id: str,
+        user_token: str | None = None,
+        request_id: str | None = None,
+    ) -> dict[str, Any]:
+        """GET /api/shop/orders/{id} 订单详情（含商品条目）。"""
+        return await self._request_json(
+            "GET",
+            f"/api/shop/orders/{order_id}",
+            user_token=user_token,
+            request_id=request_id,
+        )
+
     # ------------------------------------------------------------------
     # 内部实现
     # ------------------------------------------------------------------

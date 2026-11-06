@@ -189,7 +189,25 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     }
     from app.agent.service import LLMAdapter, ToolExecutorAdapter
     deps = AgentDeps(llm=LLMAdapter(settings.llm_base_url, llm_api_key, settings.llm_model), tools=ToolExecutorAdapter(tools))
-    app.state.orchestrator = AgentOrchestrator(deps=deps)
+
+    # 用户画像存储（S1 记忆偏好）：Redis 优先，异常回退进程内内存
+    from app.memory.profile import ProfileStore
+
+    profile_store = ProfileStore()
+    try:
+        import redis as redis_lib
+
+        sync_redis = redis_lib.Redis.from_url(
+            settings.redis_url, socket_timeout=settings.redis_socket_timeout_s
+        )
+        sync_redis.ping()
+        profile_store = ProfileStore(sync_redis)
+    except Exception as exc:  # noqa: BLE001 —— 画像持久化不可用时内存兜底，不阻断启动
+        logger.warning("profile_redis_unavailable", error=repr(exc))
+
+    app.state.orchestrator = AgentOrchestrator(
+        deps=deps, profile_store=profile_store, java_client=java_client
+    )
     app.state.java_client = java_client
     logger.info("agent_orchestrator_ready", tools=len(tools))
     logger.info(

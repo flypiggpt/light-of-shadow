@@ -88,11 +88,13 @@ def invoke_turn(
     user_id: str = "",
     request_id: str = "",
     client_context: Mapping[str, Any] | None = None,
+    user_profile: Mapping[str, Any] | None = None,
     config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
     """执行一轮对话。
 
     - 同一 session_id + checkpointer = 断点恢复（追问轮次、历史均续接）；
+    - `user_profile` 为跨会话偏好快照（预算/偏好/购买历史），注入意图与回复节点；
     - 任何节点异常已在图内降级，checkpoint 写失败由 saver 兜底，本函数不抛业务异常。
     """
     run_config: RunnableConfig = config or {
@@ -103,6 +105,7 @@ def invoke_turn(
         "user_id": user_id,
         "request_id": request_id,
         "client_context": dict(client_context or {}),
+        "user_profile": dict(user_profile or {}),
         "messages": [{"role": "user", "content": user_text}],
     }
     try:

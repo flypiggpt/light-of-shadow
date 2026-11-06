@@ -48,6 +48,8 @@ class AgentState(TypedDict, total=False):
     user_id: str
     request_id: str
     client_context: dict[str, Any]
+    # 用户画像（跨会话偏好：预算/品类/偏好/最近购买），每轮由编排层注入
+    user_profile: dict[str, Any]
 
     # ---- 对话历史（reducer：追加后硬裁剪）----
     messages: Annotated[Sequence[Mapping[str, Any]], _merge_messages]

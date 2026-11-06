@@ -502,6 +502,54 @@ Content-Type: application/json
 
 ---
 
+## 6.2 获取用户画像（记忆偏好）
+
+- 方法：`GET`
+- 路径：`/api/shoppingguide/profile`
+- 说明：读取用户跨会话记忆画像（预算/偏好/品类/品牌/最近购买），用于客户端展示与调试；画像由对话过程自动学习维护
+
+### 请求头
+
+```http
+X-User-Id: <userId>
+Authorization: Bearer <accessToken>
+```
+
+### 成功示例
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "budgetMinCent": 10000,
+    "budgetMaxCent": 20000,
+    "categories": ["耳机"],
+    "preferences": ["降噪"],
+    "brands": ["索尼"],
+    "recentOrders": [
+      {
+        "orderNo": "202605260001",
+        "status": "PAID",
+        "totalCent": 29900,
+        "createdAt": "2026-05-26T10:20:30Z",
+        "items": ["蓝牙耳机×1"]
+      }
+    ],
+    "ordersSyncedAt": "2026-06-01T09:00:00Z",
+    "updatedAt": "2026-06-01T09:05:00Z"
+  }
+}
+```
+
+字段说明：
+- `budgetMinCent` / `budgetMaxCent`：预算区间（分），未学到为 `null`
+- `categories` / `preferences` / `brands`：关注品类、特性偏好、品牌倾向（最近优先）
+- `recentOrders`：最近购买摘要（最多 3 笔），来自订单接口同步
+- 画像为空对象表示该用户暂无记忆信号
+
+---
+
 ## 7. 与现有商城交易接口的配合
 
 `shoppingguide` 模块**不重复实现购物车和订单**，只负责“导购决策 + 动作建议”。
