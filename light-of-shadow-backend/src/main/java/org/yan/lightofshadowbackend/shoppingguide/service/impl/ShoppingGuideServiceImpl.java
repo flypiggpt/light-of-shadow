@@ -17,12 +17,16 @@ import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.yan.lightofshadowbackend.common.ErrorCode;
+import org.yan.lightofshadowbackend.config.AgentProperties;
 import org.yan.lightofshadowbackend.config.DeepSeekProperties;
 import org.yan.lightofshadowbackend.exception.ApiException;
 import org.yan.lightofshadowbackend.shop.entity.ProductEntity;
 import org.yan.lightofshadowbackend.shop.mapper.ProductMapper;
+import org.yan.lightofshadowbackend.shoppingguide.client.AgentGatewayClient;
 import org.yan.lightofshadowbackend.shoppingguide.entity.MessageEntity;
 import org.yan.lightofshadowbackend.shoppingguide.entity.SessionEntity;
 import org.yan.lightofshadowbackend.shoppingguide.mapper.ShoppingGuideMapper;
@@ -36,6 +40,7 @@ import org.yan.lightofshadowbackend.shoppingguide.service.ShoppingGuideService;
 @Service
 public class ShoppingGuideServiceImpl implements ShoppingGuideService {
 
+    private static final Logger log = LoggerFactory.getLogger(ShoppingGuideServiceImpl.class);
     private static final int DEFAULT_RECOMMENDATION_POOL_SIZE = 100;
     private static final int DEFAULT_RECOMMENDATION_LIMIT = 10;
 
@@ -43,6 +48,8 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
     private final ShoppingGuideMapper shoppingGuideMapper;
     private final ShopAuthSupport authSupport;
     private final DeepSeekProperties deepSeekProperties;
+    private final AgentProperties agentProperties;
+    private final AgentGatewayClient agentGatewayClient;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
@@ -52,11 +59,15 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
                                    ShoppingGuideMapper shoppingGuideMapper,
                                    ShopAuthSupport authSupport, 
                                    DeepSeekProperties deepSeekProperties,
+                                   AgentProperties agentProperties,
+                                   AgentGatewayClient agentGatewayClient,
                                    ObjectMapper objectMapper) {
         this.productMapper = productMapper;
         this.shoppingGuideMapper = shoppingGuideMapper;
         this.authSupport = authSupport;
         this.deepSeekProperties = deepSeekProperties;
+        this.agentProperties = agentProperties;
+        this.agentGatewayClient = agentGatewayClient;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder().build();
     }
@@ -117,17 +128,31 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
     }
 
     @Override
-    public Map<String, Object> sendMessage(String userId, String sessionId, ShoppingGuideMessageRequest request) {
+    public Map<String, Object> sendMessage(String userId, String authHeader, String sessionId, ShoppingGuideMessageRequest request) {
         SessionState session = requireSession(userId, sessionId, true);
         if (request == null || request.message() == null || request.message().isBlank()) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "message不能为空");
         }
+        String text = request.message().trim();
 
+        // 首选：转发 Python Agent（LangGraph 状态机 + 工具 + 记忆偏好）
+        try {
+            return forwardMessage(userId, authHeader, sessionId, text, request, session);
+        } catch (AgentGatewayClient.AgentUnavailableException e) {
+            if (!agentProperties.fallbackAllowed()) {
+                log.warn("Agent 网关不可用且未启用回退 session={}", sessionId, e);
+                throw new ApiException(ErrorCode.INTERNAL_SERVER_ERROR, "导购服务暂不可用，请稍后再试");
+            }
+            log.warn("Agent 网关不可用，回退本地 LLM session={}", sessionId, e);
+        }
+        // Agent 业务错误（ApiException）直接向上传播，不回退
+
+        // ---- 本地回退链路（Agent 不可用时兜底，保证聊天不断） ----
         Instant now = Instant.now();
-        MessageRecord userMessage = new MessageRecord(generateId("msg_"), sessionId, "user", "text", request.message().trim(), now);
+        MessageRecord userMessage = new MessageRecord(generateId("msg_"), sessionId, "user", "text", text, now);
         session.messages.add(userMessage);
         persistMessage(userMessage);
-        session.lastUserMessage = request.message().trim();
+        session.lastUserMessage = text;
         session.updatedAt = now;
 
         // Strictly use LLM to analyze the message and products
@@ -166,6 +191,75 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
         result.put("recommendations", toRecommendationMaps(recommendations, 1, recommendations.size()));
         result.put("actions", actions);
         return result;
+    }
+
+    /** 转发消息到 Python Agent；成功后照旧落库 sg_message、刷新内存会话状态（历史权威仍在 Java）。 */
+    private Map<String, Object> forwardMessage(String userId, String authHeader, String sessionId,
+            String text, ShoppingGuideMessageRequest request, SessionState session) {
+        Map<String, Object> clientContext = null;
+        if (request.clientContext() != null) {
+            clientContext = new LinkedHashMap<>();
+            if (request.clientContext().page() != null) {
+                clientContext.put("page", request.clientContext().page());
+            }
+            if (request.clientContext().selectedTab() != null) {
+                clientContext.put("selectedTab", request.clientContext().selectedTab());
+            }
+        }
+        Map<String, Object> data = agentGatewayClient.sendMessage(userId, authHeader, sessionId,
+                AgentGatewayClient.ShoppingGuideMessageBody.of(text, clientContext));
+
+        Instant now = Instant.now();
+        MessageRecord userMessage = new MessageRecord(generateId("msg_"), sessionId, "user", "text", text, now);
+        session.messages.add(userMessage);
+        persistMessage(userMessage);
+
+        MessageRecord assistantMessage = new MessageRecord(generateId("msg_"), sessionId, "assistant", "text",
+                extractAssistantContent(data.get("assistantMessage")), Instant.now());
+        session.messages.add(assistantMessage);
+        persistMessage(assistantMessage);
+
+        session.lastUserMessage = text;
+        session.updatedAt = now;
+        refreshSessionFromAgent(session, data);
+        return data;
+    }
+
+    /** Agent 响应 → 内存会话状态（intent/recommendations 供 listRecommendations 与后续回退链路用）。 */
+    private void refreshSessionFromAgent(SessionState session, Map<String, Object> data) {
+        Object intentObj = data.get("intent");
+        if (intentObj instanceof Map<?, ?> intent) {
+            String name = intent.get("name") != null ? String.valueOf(intent.get("name")) : "other";
+            double confidence = intent.get("confidence") instanceof Number n ? n.doubleValue() : 0.5;
+            Map<String, Object> entities = intent.get("entities") instanceof Map<?, ?> e
+                    ? new LinkedHashMap<>((Map<String, Object>) e)
+                    : new LinkedHashMap<>();
+            session.lastIntent = new ParsedIntent(name, confidence, entities);
+        }
+        if (data.get("recommendations") instanceof List<?> list) {
+            List<Recommendation> recommendations = new ArrayList<>();
+            for (Object item : list) {
+                if (!(item instanceof Map<?, ?> m) || m.get("productId") == null) {
+                    continue;
+                }
+                ProductEntity product = productMapper.selectById(String.valueOf(m.get("productId")));
+                if (product == null) {
+                    continue;
+                }
+                double score = m.get("score") instanceof Number n ? n.doubleValue() : 0.95;
+                String reason = m.get("reason") instanceof String r && !r.isBlank() ? r : "为你推荐";
+                recommendations.add(toRecommendation(product, score, reason));
+            }
+            session.recommendations.clear();
+            session.recommendations.addAll(recommendations);
+        }
+    }
+
+    private static String extractAssistantContent(Object assistantMessage) {
+        if (assistantMessage instanceof Map<?, ?> m && m.get("content") != null) {
+            return String.valueOf(m.get("content"));
+        }
+        return "我暂时没有找到完全匹配的商品，你可以再补充预算或偏好。";
     }
 
     private LLMResult callDeepSeek(SessionState session, String currentMessage) {
@@ -293,15 +387,23 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
     }
 
     @Override
-    public Map<String, Object> closeSession(String userId, String sessionId) {
+    public Map<String, Object> closeSession(String userId, String authHeader, String sessionId) {
         SessionState session = requireSession(userId, sessionId, false);
         shoppingGuideMapper.updateSessionStatus(sessionId, "ENDED", Instant.now());
         session.status = "ENDED";
         session.updatedAt = Instant.now();
+        // 尽力关闭 Agent 侧线程（不可用仅告警，DB 状态已是权威）
+        agentGatewayClient.closeSession(authHeader, sessionId);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("sessionId", session.sessionId);
         result.put("status", session.status);
         return result;
+    }
+
+    @Override
+    public Map<String, Object> getProfile(String userId, String authHeader) {
+        Map<String, Object> profile = agentGatewayClient.getProfile(userId, authHeader);
+        return profile != null ? profile : new LinkedHashMap<>();
     }
 
     @Override
