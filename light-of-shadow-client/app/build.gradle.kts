@@ -44,6 +44,10 @@ android {
     kotlinOptions {
         jvmTarget = "11"
     }
+    androidResources {
+        noCompress += "tflite"
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
