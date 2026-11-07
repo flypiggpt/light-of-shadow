@@ -1,6 +1,7 @@
 package com.yan.client.network
 
 import android.util.Log
+import com.yan.client.BuildConfig
 import org.json.JSONObject
 import java.io.BufferedOutputStream
 import java.io.BufferedReader
@@ -23,8 +24,8 @@ object ApiClient {
             .build()
     }
     private const val TAG = "ApiClient"
-    private const val API_BASE_URL = "http://132.232.75.62:8080/api"
-    const val MEDIA_BASE_URL = "http://132.232.75.62:8080"
+    private val API_BASE_URL = BuildConfig.API_BASE_URL + "/api"
+    val MEDIA_BASE_URL: String = BuildConfig.API_BASE_URL
 
     data class ApiResponse(val code: Int, val message: String?, val data: JSONObject?)
 

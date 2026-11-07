@@ -1,7 +1,8 @@
-"""导购接口路由骨架（契约见 docs/api/shoppingguide_api.md）。
+"""导购接口（契约见 docs/api/shoppingguide_api.md）。
 
-当前为骨架实现：请求/响应模型与路径已与契约对齐，
-业务编排（LangGraph 状态机）尚未接入，各端点返回 501。
+网关模式下本服务只承载 Agent 侧端点：会话创建/详情、发消息、关闭、用户画像。
+消息历史 / 推荐翻页 / 商品对比 / 反馈由 Java 网关实现（历史落库在 Java），
+本服务不再保留对应 501 占位。
 """
 
 from __future__ import annotations
@@ -9,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from fastapi import Request, APIRouter, HTTPException, Query
+from fastapi import Request, APIRouter, HTTPException
 from pydantic import Field
 
 from app.api import ApiResponse, CamelModel
@@ -93,16 +94,8 @@ class SendMessageRequest(CamelModel):
     client_context: dict[str, object] | None = None
 
 
-class CompareRequest(CamelModel):
-    product_ids: list[str] = Field(min_length=2, max_length=5)
-    session_id: str | None = None
 
 
-class FeedbackRequest(CamelModel):
-    session_id: str
-    message_id: str | None = None
-    rating: int = Field(ge=1, le=5)
-    feedback: str | None = Field(default=None, max_length=500)
 
 
 # --- 响应 data ---
@@ -126,11 +119,6 @@ class SendMessageData(CamelModel):
     actions: list[Action] = Field(default_factory=list)
 
 
-class MessageListData(CamelModel):
-    page: int
-    size: int
-    total: int
-    items: list[Message] = Field(default_factory=list)
 
 
 class CloseSessionData(CamelModel):
@@ -138,25 +126,12 @@ class CloseSessionData(CamelModel):
     status: SessionStatus
 
 
-class RecommendationListData(CamelModel):
-    page: int
-    size: int
-    total: int
-    items: list[Recommendation] = Field(default_factory=list)
 
 
-class CompareItem(CamelModel):
-    product_id: str
-    highlights: list[str] = Field(default_factory=list)
 
 
-class CompareData(CamelModel):
-    summary: str
-    items: list[CompareItem] = Field(default_factory=list)
 
 
-class FeedbackData(CamelModel):
-    saved: bool
 
 
 class RecentOrder(CamelModel):
@@ -223,11 +198,12 @@ async def send_message(
     user_id = request.headers.get("X-User-Id", "anonymous")
     auth = request.headers.get("Authorization", "")
     token = auth[7:] if auth.startswith("Bearer ") else ""
-    orch.set_auth_token(token)
     try:
         result = orch.send_message(session_id=session_id, user_id=user_id,
                                    text=body.message,
-                                   request_id=request.headers.get("X-Request-ID", ""))
+                                   request_id=request.headers.get("X-Request-ID", ""),
+                                   client_context=body.client_context,
+                                   user_token=token)
     except KeyError:
         raise HTTPException(status_code=404, detail="会话不存在")
     except ValueError:
@@ -241,17 +217,6 @@ async def send_message(
     })
 
 
-@router.get(
-    "/sessions/{session_id}/messages",
-    response_model=ApiResponse[MessageListData],
-    summary="获取会话消息列表",
-)
-async def list_messages(
-    session_id: str,
-    page: int = Query(default=1, ge=1),
-    size: int = Query(default=20, ge=1, le=100),
-) -> ApiResponse[MessageListData]:
-    raise HTTPException(status_code=501, detail="消息历史尚未接入 Agent 编排")
 
 
 @router.post(
@@ -265,35 +230,10 @@ async def close_session(session_id: str, request: Request) -> ApiResponse[CloseS
     return ApiResponse(data=orch.close_session(session_id))
 
 
-@router.get(
-    "/sessions/{session_id}/recommendations",
-    response_model=ApiResponse[RecommendationListData],
-    summary="获取更多推荐",
-)
-async def list_recommendations(
-    session_id: str,
-    page: int = Query(default=1, ge=1),
-    size: int = Query(default=10, ge=1, le=100),
-) -> ApiResponse[RecommendationListData]:
-    raise HTTPException(status_code=501, detail="推荐翻页尚未接入 Agent 编排")
 
 
-@router.post(
-    "/compare",
-    response_model=ApiResponse[CompareData],
-    summary="商品对比",
-)
-async def compare_products(body: CompareRequest) -> ApiResponse[CompareData]:
-    raise HTTPException(status_code=501, detail="商品对比尚未接入 Agent 编排")
 
 
-@router.post(
-    "/feedback",
-    response_model=ApiResponse[FeedbackData],
-    summary="提交导购反馈",
-)
-async def submit_feedback(body: FeedbackRequest) -> ApiResponse[FeedbackData]:
-    raise HTTPException(status_code=501, detail="反馈收集尚未接入 Agent 编排")
 
 
 @router.get(

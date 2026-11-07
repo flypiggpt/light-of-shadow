@@ -14,7 +14,7 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from starlette.datastructures import MutableHeaders
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -55,10 +55,11 @@ def _request_id_of(request: Request) -> str | None:
 
 
 class RequestContextMiddleware:
-    """请求 ID 中间件：生成/透传 request_id，注入日志上下文并回写响应头。"""
+    """请求 ID 中间件：生成/透传 request_id，注入日志上下文并回写响应头；顺带记录 HTTP 指标。"""
 
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, metrics: Any = None) -> None:
         self.app = app
+        self._metrics = metrics
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -81,13 +82,21 @@ class RequestContextMiddleware:
         try:
             await self.app(scope, receive, send_wrapper)
         finally:
+            latency_s = time.perf_counter() - started
             logger.info(
                 "http_request",
                 method=scope.get("method", ""),
                 path=scope.get("path", ""),
                 status_code=status_code,
-                latency_ms=round((time.perf_counter() - started) * 1000, 2),
+                latency_ms=round(latency_s * 1000, 2),
             )
+            if self._metrics is not None:
+                try:
+                    self._metrics.observe_http(
+                        scope.get("method", ""), scope.get("path", ""), status_code, latency_s
+                    )
+                except Exception:  # noqa: BLE001 —— 指标失败不影响请求
+                    pass
             structlog.contextvars.clear_contextvars()
 
 
@@ -184,19 +193,46 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         internal_token=internal_token,
     )
     llm_api_key = settings.llm_api_key.get_secret_value() if settings.llm_api_key else ""
+
+    # 观测：Prometheus 指标 + Langfuse trace（关闭时 NoOp 无损降级）
+    from app.obs.langfuse import LangfuseConfig, Tracer
+
+    metrics = app.state.metrics
+    tracer = Tracer(
+        LangfuseConfig(
+            enabled=settings.langfuse_enabled,
+            public_key=settings.langfuse_public_key.get_secret_value() or None,
+            secret_key=settings.langfuse_secret_key.get_secret_value() or None,
+            host=settings.langfuse_host,
+            metrics=metrics,
+        )
+    )
+
+    # FAQ RAG 检索器（生产主路径；构建失败回退词表）
+    from app.rag.loader import build_faq_retriever
+
+    try:
+        faq_retriever = build_faq_retriever()
+    except Exception as exc:  # noqa: BLE001 —— 语料问题不阻断启动，FAQ 走词表兜底
+        logger.warning("faq_retriever_build_failed", error=repr(exc))
+        faq_retriever = None
+
     tools = {
         "search_products": SearchProductsTool(java_client),
         "get_product": GetProductTool(java_client),
         "add_cart": AddCartTool(java_client),
         "compare_products": CompareProductsTool(java_client),
-        "faq": FaqTool(java_client),
+        "faq": FaqTool(java_client, retriever=faq_retriever),
         "query_orders": QueryOrdersTool(java_client),
         "track_order": TrackOrderTool(java_client),
         "cancel_order": CancelOrderTool(java_client),
         "delete_order": DeleteOrderTool(java_client),
     }
     from app.agent.service import LLMAdapter, ToolExecutorAdapter
-    deps = AgentDeps(llm=LLMAdapter(settings.llm_base_url, llm_api_key, settings.llm_model), tools=ToolExecutorAdapter(tools))
+    deps = AgentDeps(
+        llm=LLMAdapter(settings.llm_base_url, llm_api_key, settings.llm_model, metrics=metrics),
+        tools=ToolExecutorAdapter(tools, metrics=metrics),
+    )
 
     # 用户画像存储（S1 记忆偏好）：Redis 优先，异常回退进程内内存
     from app.memory.profile import ProfileStore
@@ -213,8 +249,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception as exc:  # noqa: BLE001 —— 画像持久化不可用时内存兜底，不阻断启动
         logger.warning("profile_redis_unavailable", error=repr(exc))
 
+    # LangGraph checkpoint：跨轮对话上下文/断点恢复（Redis 优先，失败回退内存）
+    from app.memory.checkpoint import build_checkpointer
+
+    checkpointer = build_checkpointer(redis_url=settings.redis_url)
+
     app.state.orchestrator = AgentOrchestrator(
-        deps=deps, profile_store=profile_store, java_client=java_client
+        deps=deps, checkpointer=checkpointer, profile_store=profile_store,
+        java_client=java_client, tracer=tracer,
     )
     app.state.java_client = java_client
     logger.info("agent_orchestrator_ready", tools=len(tools))
@@ -244,6 +286,10 @@ def create_app() -> FastAPI:
     settings = get_settings()
     configure_logging(settings)
 
+    from app.obs.metrics import MetricsRegistry
+
+    metrics = MetricsRegistry()
+
     application = FastAPI(
         title="音影寻光 · 导购智能服务",
         description="音影寻光导购智能：会话编排、商品推荐与导购问答（Agent 服务）",
@@ -253,12 +299,18 @@ def create_app() -> FastAPI:
         redoc_url=None if settings.is_prod else "/redoc",
         openapi_url=None if settings.is_prod else "/openapi.json",
     )
-    application.add_middleware(RequestContextMiddleware)
+    application.state.metrics = metrics
+    application.add_middleware(RequestContextMiddleware, metrics=metrics)
     application.add_exception_handler(StarletteHTTPException, _http_exception_handler)
     application.add_exception_handler(RequestValidationError, _validation_exception_handler)
     application.add_exception_handler(Exception, _unhandled_exception_handler)
     application.include_router(health.router)
     application.include_router(shoppingguide.router)
+
+    @application.get("/metrics", include_in_schema=False)
+    def metrics_endpoint() -> PlainTextResponse:
+        return PlainTextResponse(metrics.render_prometheus())
+
     return application
 
 

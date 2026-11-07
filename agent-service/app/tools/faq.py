@@ -1,7 +1,8 @@
 """FAQ 工具：购物指南常见问题。
 
-命中本地知识库直接返回标准答案；未命中且问题像商品相关时，
-回退调 Java 商品搜索拿事实数据，由上层 LLM 组织回答（不编造价格库存）。
+降级链：RAG 混合检索（主路径，语料 app/data/faq_corpus.json）→
+本地关键词知识库 → 商品搜索拿事实数据。未命中标准答案时
+由上层 LLM 组织回答（不编造价格库存）。
 """
 
 from __future__ import annotations
@@ -64,11 +65,33 @@ class FaqTool(BaseTool):
     )
     args_model = FaqArgs
 
-    def __init__(self, client: JavaApiClient | None = None, **base_kwargs: Any) -> None:
+    def __init__(self, client: JavaApiClient | None = None, retriever: Any = None,
+                 **base_kwargs: Any) -> None:
         super().__init__(**base_kwargs)
         self._client = client or JavaApiClient()
+        self._retriever = retriever
 
     async def _invoke(self, args: FaqArgs, ctx: ToolContext) -> Any:
+        # 1) RAG 混合检索（生产主路径）：召回语料片段供上层 LLM 组织回答
+        if self._retriever is not None:
+            result = self._retriever.retrieve(args.question, top_k=3)
+            if result.items:
+                documents = [
+                    {
+                        "doc_id": item.chunk.doc_id,
+                        "title": (item.chunk.metadata or {}).get("title", ""),
+                        "text": item.chunk.text,
+                        "score": item.score,
+                    }
+                    for item in result.items
+                ]
+                return {
+                    "type": "rag",
+                    "question": args.question,
+                    "documents": documents,
+                }
+
+        # 2) 关键词知识库兜底（标准答案）
         best = self._match_faq(args.question)
         if best is not None:
             return {
