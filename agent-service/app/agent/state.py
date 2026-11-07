@@ -50,6 +50,8 @@ class AgentState(TypedDict, total=False):
     client_context: dict[str, Any]
     # 用户画像（跨会话偏好：预算/品类/偏好/最近购买），每轮由编排层注入
     user_profile: dict[str, Any]
+    # 请求级用户 token（工具调 Java 用），随状态流转，不共享可变字段
+    user_token: str
 
     # ---- 对话历史（reducer：追加后硬裁剪）----
     messages: Annotated[Sequence[Mapping[str, Any]], _merge_messages]
@@ -111,6 +113,7 @@ class ToolExecutor(Protocol):
         arguments: Mapping[str, Any],
         *,
         timeout: float | None = None,
+        user_token: str | None = None,
     ) -> ToolResult: ...
 
 
