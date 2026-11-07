@@ -40,20 +40,23 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
     private final ShoppingGuideMapper shoppingGuideMapper;
     private final ShopAuthSupport authSupport;
     private final AgentGatewayClient agentGatewayClient;
-    private final ObjectMapper objectMapper;
+    private final ShoppingGuideCompareService compareService;
+    private final ShoppingGuideSessionStore sessionStore;
 
     private final Map<String, SessionState> sessions = new ConcurrentHashMap<>();
 
-    public ShoppingGuideServiceImpl(ProductMapper productMapper, 
+    public ShoppingGuideServiceImpl(ProductMapper productMapper,
                                    ShoppingGuideMapper shoppingGuideMapper,
-                                   ShopAuthSupport authSupport, 
+                                   ShopAuthSupport authSupport,
                                    AgentGatewayClient agentGatewayClient,
-                                   ObjectMapper objectMapper) {
+                                   ShoppingGuideCompareService compareService,
+                                   ShoppingGuideSessionStore sessionStore) {
         this.productMapper = productMapper;
         this.shoppingGuideMapper = shoppingGuideMapper;
         this.authSupport = authSupport;
         this.agentGatewayClient = agentGatewayClient;
-        this.objectMapper = objectMapper;
+        this.compareService = compareService;
+        this.sessionStore = sessionStore;
     }
 
     @Override
@@ -151,18 +154,18 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
         Instant now = Instant.now();
         MessageRecord userMessage = new MessageRecord(generateId("msg_"), sessionId, "user", "text", text, now);
         session.messages.add(userMessage);
-        persistMessage(userMessage);
+        sessionStore.persistMessage(userMessage);
 
         MessageRecord assistantMessage = new MessageRecord(generateId("msg_"), sessionId, "assistant", "text",
                 extractAssistantContent(data.get("assistantMessage")), Instant.now());
         session.messages.add(assistantMessage);
-        persistMessage(assistantMessage);
+        sessionStore.persistMessage(assistantMessage);
 
         session.lastUserMessage = text;
         session.summary = summarize(session.summary, text);
         session.updatedAt = now;
         refreshSessionFromAgent(session, data);
-        persistSessionExtra(session);
+        sessionStore.persistExtra(session);
         return data;
     }
 
@@ -274,18 +277,7 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
         if (request.sessionId() != null && !request.sessionId().isBlank()) {
             requireSession(userId, request.sessionId(), false);
         }
-        List<Map<String, Object>> items = new ArrayList<>();
-        List<ProductEntity> products = new ArrayList<>();
-        for (String productId : request.productIds()) {
-            ProductEntity product = requireProduct(productId);
-            products.add(product);
-            items.add(compareItem(product));
-        }
-        String summary = buildCompareSummary(products);
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("summary", summary);
-        result.put("items", items);
-        return result;
+        return compareService.compare(request.productIds());
     }
 
     @Override
@@ -356,7 +348,7 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
                     session.lastUserMessage = m.getContent();
                 }
             }
-            restoreSessionExtra(session, entity);
+            sessionStore.restoreExtra(session, entity);
             sessions.put(sessionId, session);
         }
         if (!session.userId.equals(userId)) {
@@ -369,73 +361,10 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
     }
 
     /** 会话扩展状态（summary/意图/推荐）落库，重启后由 restoreSessionExtra 恢复。 */
-    private void persistSessionExtra(SessionState session) {
-        try {
-            String intentJson = objectMapper.writeValueAsString(session.lastIntent.toMap());
-            String recommendationsJson = objectMapper.writeValueAsString(
-                    toRecommendationMaps(session.recommendations, 0, session.recommendations.size()));
-            shoppingGuideMapper.updateSessionExtra(session.sessionId,
-                    session.summary == null ? "" : session.summary,
-                    intentJson, recommendationsJson, Instant.now());
-        } catch (Exception e) {
-            log.warn("session_extra_persist_failed session={}", session.sessionId, e);
-        }
-    }
 
     /** 从 DB 恢复 summary/lastIntent/recommendations（消息已在前面恢复）。 */
-    @SuppressWarnings("unchecked")
-    private void restoreSessionExtra(SessionState session, SessionEntity entity) {
-        session.summary = entity.getSummary() == null ? "" : entity.getSummary();
-        try {
-            if (entity.getLastIntent() != null && !entity.getLastIntent().isBlank()) {
-                Map<String, Object> intent = objectMapper.readValue(entity.getLastIntent(), Map.class);
-                session.lastIntent = new ParsedIntent(
-                        String.valueOf(intent.getOrDefault("name", "other")),
-                        intent.get("confidence") instanceof Number n ? n.doubleValue() : 0.5,
-                        intent.get("entities") instanceof Map<?, ?> e ? (Map<String, Object>) e : Map.of());
-            }
-        } catch (Exception e) {
-            log.warn("session_intent_restore_failed session={}", session.sessionId, e);
-        }
-        try {
-            if (entity.getRecommendationsJson() != null && !entity.getRecommendationsJson().isBlank()) {
-                List<Map<String, Object>> recs = objectMapper.readValue(entity.getRecommendationsJson(), List.class);
-                session.recommendations.clear();
-                for (Map<String, Object> rec : recs) {
-                    session.recommendations.add(new Recommendation(
-                            String.valueOf(rec.get("productId")),
-                            String.valueOf(rec.getOrDefault("name", "")),
-                            String.valueOf(rec.getOrDefault("description", "")),
-                            rec.get("priceCent") instanceof Number n ? n.intValue() : 0,
-                            rec.get("stock") instanceof Number n ? n.intValue() : 0,
-                            String.valueOf(rec.getOrDefault("coverUrl", "")),
-                            rec.get("score") instanceof Number n ? n.doubleValue() : 0.9,
-                            String.valueOf(rec.getOrDefault("reason", ""))));
-                }
-            }
-        } catch (Exception e) {
-            log.warn("session_recommendations_restore_failed session={}", session.sessionId, e);
-        }
-    }
 
-    private void persistMessage(MessageRecord record) {
-        MessageEntity entity = new MessageEntity();
-        entity.setId(record.messageId());
-        entity.setSessionId(record.sessionId());
-        entity.setRole(record.role());
-        entity.setContentType(record.contentType());
-        entity.setContent(record.content());
-        entity.setCreatedAt(record.createdAt());
-        shoppingGuideMapper.insertMessage(entity);
-    }
 
-    private ProductEntity requireProduct(String productId) {
-        ProductEntity product = productMapper.selectById(productId);
-        if (product == null) {
-            throw new ApiException(ErrorCode.NOT_FOUND, "商品不存在");
-        }
-        return product;
-    }
 
     private Recommendation toRecommendation(ProductEntity product, double score, String reason) {
         return new Recommendation(
@@ -491,34 +420,8 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
         return items;
     }
 
-    private Map<String, Object> compareItem(ProductEntity product) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put("productId", product.getId());
-        map.put("name", product.getName());
-        map.put("highlights", buildHighlights(product));
-        map.put("priceCent", product.getPriceCent() == null ? 0 : product.getPriceCent());
-        map.put("stock", product.getStock() == null ? 0 : product.getStock());
-        map.put("coverUrl", product.getCoverUrl());
-        return map;
-    }
 
-    private List<String> buildHighlights(ProductEntity product) {
-        List<String> highlights = new ArrayList<>();
-        String text = ((product.getName() == null ? "" : product.getName()) + " " + (product.getDescription() == null ? "" : product.getDescription())).toLowerCase(Locale.ROOT);
-        if (text.contains("语音")) highlights.add("语音播报");
-        if (text.contains("轻") || text.contains("量")) highlights.add("超轻便设计");
-        if (highlights.isEmpty()) highlights.add("专业辅具");
-        return highlights;
-    }
 
-    private String buildCompareSummary(List<ProductEntity> products) {
-        if (products.size() < 2) {
-            return "商品数量不足，无法对比。";
-        }
-        ProductEntity first = products.get(0);
-        ProductEntity second = products.get(1);
-        return "“" + first.getName() + "”和“" + second.getName() + "”已完成对比，前者更适合优先关注，后者可作为备选。";
-    }
 
     private ParsedIntent buildIntent(String name, double confidence, Map<String, Object> entities) {
         return new ParsedIntent(name, confidence, entities == null ? Map.of() : entities);
@@ -549,7 +452,7 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
         return Math.round(value * 100.0) / 100.0;
     }
 
-    private static class SessionState {
+    static class SessionState {
         String sessionId;
         String userId;
         String entry;
@@ -571,17 +474,17 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
         }
     }
 
-    private record MessageRecord(String messageId, String sessionId, String role, String contentType, String content, Instant createdAt) {
+    record MessageRecord(String messageId, String sessionId, String role, String contentType, String content, Instant createdAt) {
     }
 
-    private record Recommendation(String productId, String name, String description, int priceCent, int stock, String coverUrl, double score, String reason) {
+    record Recommendation(String productId, String name, String description, int priceCent, int stock, String coverUrl, double score, String reason) {
     }
 
-    private record FeedbackRecord(String feedbackId, String sessionId, String messageId, int rating, String feedback, Instant createdAt) {
+    record FeedbackRecord(String feedbackId, String sessionId, String messageId, int rating, String feedback, Instant createdAt) {
     }
 
-    private record ParsedIntent(String name, double confidence, Map<String, Object> entities) {
-        private Map<String, Object> toMap() {
+    record ParsedIntent(String name, double confidence, Map<String, Object> entities) {
+        Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("name", name);
             map.put("confidence", confidence);

@@ -16,7 +16,9 @@ import org.yan.lightofshadowbackend.shoppingguide.client.AgentGatewayClient;
 import org.yan.lightofshadowbackend.shoppingguide.dto.ShoppingGuideMessageRequest;
 import org.yan.lightofshadowbackend.shoppingguide.entity.SessionEntity;
 import org.yan.lightofshadowbackend.shoppingguide.mapper.ShoppingGuideMapper;
+import org.yan.lightofshadowbackend.shoppingguide.service.impl.ShoppingGuideCompareService;
 import org.yan.lightofshadowbackend.shoppingguide.service.impl.ShoppingGuideServiceImpl;
+import org.yan.lightofshadowbackend.shoppingguide.service.impl.ShoppingGuideSessionStore;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -53,7 +55,8 @@ class ShoppingGuideGatewayRoutingTest {
                 shoppingGuideMapper,
                 Mockito.mock(ShopAuthSupport.class),
                 gateway,
-                new ObjectMapper());
+                new ShoppingGuideCompareService(Mockito.mock(ProductMapper.class)),
+                new ShoppingGuideSessionStore(shoppingGuideMapper, new ObjectMapper()));
     }
 
     private ShoppingGuideMessageRequest request(String text) {
