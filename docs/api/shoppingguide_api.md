@@ -335,6 +335,7 @@ Android ──► Java(8080) ──┬─► Python Agent(8000)   sendMessage / 
 `recommend_product` / `search_product` / `compare_product` / `add_cart` / `product_detail` /
 `query_orders`（查订单）/ `track_order`（查物流详情，entities 需 `orderId`）/
 `cancel_order`（取消待支付订单，entities 需 `orderId`）/
+`delete_order`（删除订单记录，entities 需 `orderId`，不可恢复）/
 `faq` / `chitchat` / `other`
 
 > 注意：价格、库存、商品名等实时信息必须以商品接口或商品中心数据为准，不应由大模型直接编造。
