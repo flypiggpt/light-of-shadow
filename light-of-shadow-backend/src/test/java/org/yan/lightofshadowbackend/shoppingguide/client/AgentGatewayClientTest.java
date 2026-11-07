@@ -39,7 +39,7 @@ class AgentGatewayClientTest {
         server.start();
         String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
         client = new AgentGatewayClient(
-                new AgentProperties(baseUrl, 500, 2000, true), mapper);
+                new AgentProperties(baseUrl, 500, 2000), mapper);
     }
 
     @AfterEach
@@ -95,7 +95,7 @@ class AgentGatewayClientTest {
     @Test
     void connectRefused_throwsUnavailable() {
         AgentGatewayClient dead = new AgentGatewayClient(
-                new AgentProperties("http://127.0.0.1:1", 200, 500, true), mapper);
+                new AgentProperties("http://127.0.0.1:1", 200, 500), mapper);
         assertThrows(AgentGatewayClient.AgentUnavailableException.class,
                 () -> dead.sendMessage("u", "Bearer t", "sg", AgentGatewayClient.ShoppingGuideMessageBody.of("x", null)));
     }
@@ -103,14 +103,14 @@ class AgentGatewayClientTest {
     @Test
     void closeSession_unavailable_returnsFalseWithoutThrow() {
         AgentGatewayClient dead = new AgentGatewayClient(
-                new AgentProperties("http://127.0.0.1:1", 200, 500, true), mapper);
+                new AgentProperties("http://127.0.0.1:1", 200, 500), mapper);
         assertEquals(false, dead.closeSession("Bearer t", "sg"));
     }
 
     @Test
     void getProfile_unavailable_returnsNull() {
         AgentGatewayClient dead = new AgentGatewayClient(
-                new AgentProperties("http://127.0.0.1:1", 200, 500, true), mapper);
+                new AgentProperties("http://127.0.0.1:1", 200, 500), mapper);
         assertNull(dead.getProfile("u", "Bearer t"));
     }
 

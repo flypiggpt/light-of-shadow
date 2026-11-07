@@ -7,8 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record AgentProperties(
         String baseUrl,
         long connectTimeoutMs,
-        long readTimeoutMs,
-        Boolean fallbackEnabled) {
+        long readTimeoutMs) {
 
     public AgentProperties {
         if (baseUrl == null || baseUrl.isBlank()) {
@@ -20,13 +19,5 @@ public record AgentProperties(
         if (readTimeoutMs <= 0) {
             readTimeoutMs = 35000;
         }
-        if (fallbackEnabled == null) {
-            fallbackEnabled = true;
-        }
-    }
-
-    /** 是否允许 Agent 不可用时回退本地 LLM（默认开）。 */
-    public boolean fallbackAllowed() {
-        return Boolean.TRUE.equals(fallbackEnabled);
     }
 }

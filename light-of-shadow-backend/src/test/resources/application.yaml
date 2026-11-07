@@ -53,13 +53,7 @@ app:
         base-url: /media
         max-file-size-bytes: 5242880
 
-deepseek:
-  api-key: test
-  model: deepseek-chat
-  base-url: https://api.deepseek.com
-
 agent:
   base-url: http://127.0.0.1:8000
   connect-timeout-ms: 200
   read-timeout-ms: 500
-  fallback-enabled: true

@@ -9,7 +9,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.yan.lightofshadowbackend.common.ErrorCode;
 import org.yan.lightofshadowbackend.config.AgentProperties;
-import org.yan.lightofshadowbackend.config.DeepSeekProperties;
 import org.yan.lightofshadowbackend.exception.ApiException;
 import org.yan.lightofshadowbackend.shop.mapper.ProductMapper;
 import org.yan.lightofshadowbackend.shop.service.ShopAuthSupport;
@@ -17,7 +16,9 @@ import org.yan.lightofshadowbackend.shoppingguide.client.AgentGatewayClient;
 import org.yan.lightofshadowbackend.shoppingguide.dto.ShoppingGuideMessageRequest;
 import org.yan.lightofshadowbackend.shoppingguide.entity.SessionEntity;
 import org.yan.lightofshadowbackend.shoppingguide.mapper.ShoppingGuideMapper;
+import org.yan.lightofshadowbackend.shoppingguide.service.impl.ShoppingGuideCompareService;
 import org.yan.lightofshadowbackend.shoppingguide.service.impl.ShoppingGuideServiceImpl;
+import org.yan.lightofshadowbackend.shoppingguide.service.impl.ShoppingGuideSessionStore;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -28,7 +29,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** sendMessage 网关路由：转发成功落库 / 不可用回退开关 / 业务错误不降级。 */
+/** sendMessage 网关路由：转发成功落库 / 网关不可用直接报错（无本地兜底） / 业务错误不降级。 */
 class ShoppingGuideGatewayRoutingTest {
 
     private ShoppingGuideMapper shoppingGuideMapper;
@@ -53,10 +54,9 @@ class ShoppingGuideGatewayRoutingTest {
                 Mockito.mock(ProductMapper.class),
                 shoppingGuideMapper,
                 Mockito.mock(ShopAuthSupport.class),
-                new DeepSeekProperties("", "deepseek-chat", "https://api.deepseek.com"),
-                new AgentProperties("http://127.0.0.1:8000", 500, 2000, true),
                 gateway,
-                new ObjectMapper());
+                new ShoppingGuideCompareService(Mockito.mock(ProductMapper.class)),
+                new ShoppingGuideSessionStore(shoppingGuideMapper, new ObjectMapper()));
     }
 
     private ShoppingGuideMessageRequest request(String text) {
@@ -78,23 +78,15 @@ class ShoppingGuideGatewayRoutingTest {
     }
 
     @Test
-    void gatewayUnavailable_fallbackDisabled_throwsServiceUnavailable() {
+    void gatewayUnavailable_throwsInternalError_withoutFallback() {
         when(gateway.sendMessage(anyString(), anyString(), anyString(), any()))
                 .thenThrow(new AgentGatewayClient.AgentUnavailableException("down", null));
 
-        ShoppingGuideServiceImpl strict = new ShoppingGuideServiceImpl(
-                Mockito.mock(ProductMapper.class),
-                shoppingGuideMapper,
-                Mockito.mock(ShopAuthSupport.class),
-                new DeepSeekProperties("", "deepseek-chat", "https://api.deepseek.com"),
-                new AgentProperties("http://127.0.0.1:8000", 500, 2000, false),
-                gateway,
-                new ObjectMapper());
-
         ApiException e = assertThrows(ApiException.class,
-                () -> strict.sendMessage("u_1", "Bearer tok", "sg_t1", request("你好")));
+                () -> service.sendMessage("u_1", "Bearer tok", "sg_t1", request("你好")));
         assertEquals(ErrorCode.INTERNAL_SERVER_ERROR, e.getErrorCode());
         assertTrue(e.getMessage().contains("暂不可用"));
+        // 网关不可用不再回退本地 LLM，也不落库
         verify(shoppingGuideMapper, never()).insertMessage(any());
     }
 
