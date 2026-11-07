@@ -41,6 +41,7 @@ app:
     jwt:
       issuer: light-of-shadow-backend
       secret: ${JWT_SECRET:change-me-to-a-long-random-secret-for-production-please}
+    merchant-invite-code: ${MERCHANT_INVITE_CODE:test-merchant-invite}
     access-token-ttl: 2h
     refresh-token-ttl: 30d
   storage:

@@ -107,4 +107,44 @@ class AuthFlowTest {
         JsonNode reuse = postJson("/api/auth/refresh", "{\"refreshToken\":\"" + refresh + "\"}");
         assertNotEquals(0, reuse.get("code").asInt(), "登出后 refresh 应作废");
     }
+
+    // ---- 商家邀请码注册 ----
+
+    @Autowired
+    private org.yan.lightofshadowbackend.auth.code.VerificationCodeService codeService;
+
+    private String registerBody(String username, String email, String code, String invite) {
+        return "{\"username\":\"" + username + "\",\"email\":\"" + email + "\",\"password\":\"pw123456\","
+                + "\"nickname\":\"昵称\",\"verificationCode\":\"" + code + "\",\"inviteCode\":\"" + invite + "\"}";
+    }
+
+    @Test
+    void registerWithMerchantInviteCreatesMerchant() throws Exception {
+        String code = codeService.send("m@example.com", "register").code();
+        JsonNode resp = postJson("/api/auth/register",
+                registerBody("newmerchant", "m@example.com", code, "test-merchant-invite"));
+        assertEquals(0, resp.get("code").asInt());
+        String role = jdbc.queryForObject(
+                "SELECT role FROM sys_user WHERE username='newmerchant'", String.class);
+        assertEquals("MERCHANT", role, "带有效邀请码应注册为商家");
+    }
+
+    @Test
+    void registerWithWrongInviteRejected() throws Exception {
+        String code = codeService.send("w@example.com", "register").code();
+        JsonNode resp = postJson("/api/auth/register",
+                registerBody("wronginvite", "w@example.com", code, "not-the-code"));
+        assertNotEquals(0, resp.get("code").asInt(), "错误邀请码应拒绝");
+    }
+
+    @Test
+    void registerWithoutInviteIsNormalUser() throws Exception {
+        String code = codeService.send("n@example.com", "register").code();
+        JsonNode resp = postJson("/api/auth/register",
+                registerBody("normaluser", "n@example.com", code, ""));
+        assertEquals(0, resp.get("code").asInt());
+        String role = jdbc.queryForObject(
+                "SELECT role FROM sys_user WHERE username='normaluser'", String.class);
+        assertEquals("USER", role);
+    }
 }

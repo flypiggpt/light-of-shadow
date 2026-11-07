@@ -35,6 +35,7 @@ app:
     jwt:
       issuer: test
       secret: test-secret-for-unit-tests-only-0123456789abcdef
+    merchant-invite-code: test-merchant-invite
     access-token-ttl: 2h
     refresh-token-ttl: 30d
   storage:
