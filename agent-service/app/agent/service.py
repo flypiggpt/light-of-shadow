@@ -144,7 +144,10 @@ class AgentOrchestrator:
                      request_id: str = "", client_context: Mapping[str, Any] | None = None) -> dict[str, Any]:
         rec = self._sessions.get(session_id)
         if rec is None:
-            raise KeyError(session_id)
+            # 网关模式：sessionId 由 Java 生成落库，Agent 按需建线程（LangGraph thread_id）
+            rec = SessionRecord(session_id=session_id, user_id=user_id, source="gateway")
+            self._sessions[session_id] = rec
+            self._messages.setdefault(session_id, [])
         if rec.status == "ENDED":
             raise ValueError("session_ended")
 
@@ -201,7 +204,11 @@ class AgentOrchestrator:
     def close_session(self, session_id: str) -> dict[str, Any]:
         rec = self._sessions.get(session_id)
         if rec is None:
-            raise KeyError(session_id)
+            # 幂等：网关可能关闭 Agent 未见过的会话（未发过消息/已重启）
+            return {
+                "sessionId": session_id,
+                "status": "ENDED",
+            }
         rec.status = "ENDED"
         rec.updated_at = datetime.now(timezone.utc).isoformat()
         return self._session_dict(rec)

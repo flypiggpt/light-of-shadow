@@ -17,11 +17,14 @@ public interface ShoppingGuideService {
 
     Map<String, Object> getSession(String userId, String sessionId);
 
-    Map<String, Object> sendMessage(String userId, String sessionId, ShoppingGuideMessageRequest request);
+    Map<String, Object> sendMessage(String userId, String authHeader, String sessionId, ShoppingGuideMessageRequest request);
 
     Map<String, Object> listMessages(String userId, String sessionId, int page, int size);
 
-    Map<String, Object> closeSession(String userId, String sessionId);
+    Map<String, Object> closeSession(String userId, String authHeader, String sessionId);
+
+    /** 用户画像（转发 Agent；Agent 不可用时返回空画像）。 */
+    Map<String, Object> getProfile(String userId, String authHeader);
 
     Map<String, Object> listRecommendations(String userId, String sessionId, int page, int size);
 

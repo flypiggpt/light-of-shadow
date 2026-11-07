@@ -186,7 +186,8 @@ def learn_from_turn(
     preference = entities.get("preference")
     prefs = [preference] if isinstance(preference, str) else preference
     if isinstance(prefs, (list, tuple)):
-        profile.preferences = _merge_list(profile.preferences, [str(p)[:16] for p in prefs if p])
+        cleaned = [str(p)[:16] for p in prefs if p and not _looks_like_budget(str(p))]
+        profile.preferences = _merge_list(profile.preferences, cleaned)
     if not profile.preferences and text:
         hit = [k for k in _PREFERENCE_KEYWORDS if k in text]
         if hit:
@@ -200,6 +201,13 @@ def learn_from_turn(
     if profile.has_signal():
         profile.updated_at = datetime.now(timezone.utc).isoformat()
     return profile
+
+
+def _looks_like_budget(text: str) -> bool:
+    """偏好槽位里混入的预算表述（“预算200元”“500以内”）→ 丢弃，预算另有字段。"""
+    if any(k in text for k in ("预算", "以内", "不超过", "左右")):
+        return True
+    return bool(re.fullmatch(r"\d+(?:\.\d+)?\s*(k|K|千|万|元|块|块钱)?", text.strip()))
 
 
 def _merge_list(old: list[str], new: list[str]) -> list[str]:

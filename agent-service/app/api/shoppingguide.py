@@ -261,10 +261,8 @@ async def list_messages(
 )
 async def close_session(session_id: str, request: Request) -> ApiResponse[CloseSessionData]:
     orch = request.app.state.orchestrator
-    try:
-        return ApiResponse(data=orch.close_session(session_id))
-    except KeyError:
-        raise HTTPException(status_code=404, detail="会话不存在")
+    # 幂等：未知会话也返回 ENDED（网关可能关闭 Agent 未见过的会话）
+    return ApiResponse(data=orch.close_session(session_id))
 
 
 @router.get(

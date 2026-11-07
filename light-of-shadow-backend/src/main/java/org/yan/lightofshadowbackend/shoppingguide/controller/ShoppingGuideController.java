@@ -60,7 +60,7 @@ public class ShoppingGuideController {
             @RequestBody ShoppingGuideMessageRequest request,
             @RequestHeader(value = "Authorization", required = false) String auth) {
         String userId = authSupport.resolveUserId(auth);
-        return ApiResponse.success(shoppingGuideService.sendMessage(userId, sessionId, request));
+        return ApiResponse.success(shoppingGuideService.sendMessage(userId, auth, sessionId, request));
     }
 
     @GetMapping("/sessions/{sessionId}/messages")
@@ -78,7 +78,15 @@ public class ShoppingGuideController {
             @PathVariable("sessionId") String sessionId,
             @RequestHeader(value = "Authorization", required = false) String auth) {
         String userId = authSupport.resolveUserId(auth);
-        return ApiResponse.success(shoppingGuideService.closeSession(userId, sessionId));
+        return ApiResponse.success(shoppingGuideService.closeSession(userId, auth, sessionId));
+    }
+
+    /** 用户画像（记忆偏好，转发 Agent；Agent 不可用返回空画像） */
+    @GetMapping("/profile")
+    public ApiResponse<Map<String, Object>> profile(
+            @RequestHeader(value = "Authorization", required = false) String auth) {
+        String userId = authSupport.resolveUserId(auth);
+        return ApiResponse.success(shoppingGuideService.getProfile(userId, auth));
     }
 
     @GetMapping("/sessions/{sessionId}/recommendations")

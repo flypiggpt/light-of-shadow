@@ -87,6 +87,7 @@ START → guard（输入消毒/防注入） → intent（LLM 意图+槽位）
 
 **如何实现**（`app/agent/service.py`）：
 - `AgentOrchestrator`：创建/查询/发消息/关闭会话，调 `invoke_turn`
+- **网关模式**：Java 网关转发的 sessionId 未在 Agent 建过会话时，按需建线程直接可用（sessionId 以 Java 为准，历史落库在 Java）；`close_session` 幂等（未知会话也返回 ENDED）
 - `LLMAdapter`：把异步 `DeepSeekClient` 适配成同步 `LLMClient` 协议；**每次调用新建客户端**，避免 `httpx.AsyncClient` 绑定旧事件循环导致死锁
 - `ToolExecutorAdapter`：把工具 dict 适配成 `ToolExecutor` 协议；透传用户 token 到 `ToolContext`
 
