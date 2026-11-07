@@ -101,6 +101,7 @@ START → guard（输入消毒/防注入） → intent（LLM 意图+槽位）
 
 **如何实现**（`app/memory/`）：
 - `checkpoint.py`：`ResilientCheckpointSaver`——不可变键 + ZSET 推导 latest + HSETNX 幂等；**吞异常回退内存，失败不阻断对话**
+- **已注入状态机**（`main.py` 用 `build_checkpointer` 构造并传入 `AgentOrchestrator`）：同一 sessionId 跨轮消息/追问轮次真实续接，重启不丢线程
 - `window.py`：消息窗口裁剪，防上下文爆长
 
 ### 7. RAG 检索管线
@@ -119,9 +120,9 @@ START → guard（输入消毒/防注入） → intent（LLM 意图+槽位）
 
 **做了什么**：出了问题能定位、性能能度量、成本能核算。
 
-**如何实现**（`app/obs/`）：
-- `metrics.py`：Prometheus 文本格式——QPS、**延迟 P50/P95/P99**（桶内插值）、工具成功率、LLM token/USD 成本、检索降级计数
-- `langfuse.py`：trace/generation/采样/评分；SDK 缺失时 NoOp 无损降级
+**如何实现**（`app/obs/`，**已接入线上链路**）：
+- `metrics.py`：Prometheus 文本格式——QPS、**延迟 P50/P95/P99**（桶内插值）、工具成功率、LLM token/USD 成本、检索降级计数；HTTP 中间件自动记录请求指标，`GET /metrics` 暴露
+- `langfuse.py`：trace/generation/采样/评分；SDK 缺失时 NoOp 无损降级；每轮对话在编排层落 trace，LLM/工具调用写 token 成本指标
 
 ### 9. 测试与评测
 
@@ -135,7 +136,7 @@ START → guard（输入消毒/防注入） → intent（LLM 意图+槽位）
   - **基线门禁**：`baseline.json` 阈值，`python tests/golden/run_eval.py` 出 JSON/Markdown 报告并卡线
 - CI（`.github/workflows/agent-quality.yml`）：单测 + 离线检索评测每个 PR 必跑；LLM 真路由评测对照基线，**跌破基线 CI 变红挡合并**
 - `tests/test_profile.py`：用户画像学习/注入/追问抑制的单测与回归
-- 73 项测试覆盖：降级链路自检、并发 checkpoint、跨轮恢复、RRF 融合、指标百分位、token 成本、画像闭环、订单工具与网关
+- 82 项测试覆盖：降级链路自检、checkpoint 跨轮续接、RRF 融合、指标百分位、token 成本、画像闭环、token 请求级透传、RAG 主路径、订单工具与网关
 
 **当前基线**（temp=0，deepseek）：检索命中率 1.0 / MRR 0.9、工具调用准确率 1.0、回答正确率 1.0。
 
