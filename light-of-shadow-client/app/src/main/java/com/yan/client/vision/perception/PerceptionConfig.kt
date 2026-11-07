@@ -64,6 +64,12 @@ object PerceptionConfig {
     const val CAMERA_HEIGHT_MAX_M = 2.3f
     /** 台阶/坑洞残差阈值（米）：|残差| 超过它才算显著 */
     const val STAIR_RESIDUAL_M = 0.15f
+    /** 判定坑洞（深坑）的残差阈值（米） */
+    const val PIT_RESIDUAL_M = 0.30f
+    /** 候选连通域最小面积（深度图像素²）：滤除零星噪点 */
+    const val CANDIDATE_MIN_AREA_PX = 48
+    /** 判定「上行台阶」的最小横向跨度（米）：宽而平的抬升才算台阶，窄的是普通障碍 */
+    const val UP_STAIR_MIN_WIDTH_M = 0.4f
     /** 米制距离全局校正系数（真机用卷尺标定后改这里，PR5 调参项） */
     const val GROUND_DISTANCE_SCALE = 1.0f
 
