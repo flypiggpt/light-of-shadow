@@ -11,8 +11,20 @@
         <result column="locale" property="locale"/>
         <result column="status" property="status"/>
         <result column="welcome_message" property="welcomeMessage"/>
+        <result column="summary" property="summary"/>
+        <result column="last_intent" property="lastIntent"/>
+        <result column="recommendations_json" property="recommendationsJson"/>
         <result column="created_at" property="createdAt"/>
         <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <resultMap id="FeedbackResultMap" type="org.yan.lightofshadowbackend.shoppingguide.entity.ShoppingGuideFeedbackEntity">
+        <id column="id" property="id"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="message_id" property="messageId"/>
+        <result column="rating" property="rating"/>
+        <result column="feedback" property="feedback"/>
+        <result column="created_at" property="createdAt"/>
     </resultMap>
 
     <resultMap id="MessageResultMap" type="org.yan.lightofshadowbackend.shoppingguide.entity.MessageEntity">
@@ -25,12 +37,24 @@
     </resultMap>
 
     <insert id="insertSession" parameterType="org.yan.lightofshadowbackend.shoppingguide.entity.SessionEntity">
-        INSERT INTO sg_session (id, user_id, entry, source, locale, status, welcome_message, created_at, updated_at)
-        VALUES (#{id}, #{userId}, #{entry}, #{source}, #{locale}, #{status}, #{welcomeMessage}, #{createdAt}, #{updatedAt})
+        INSERT INTO sg_session (id, user_id, entry, source, locale, status, welcome_message, summary, last_intent, recommendations_json, created_at, updated_at)
+        VALUES (#{id}, #{userId}, #{entry}, #{source}, #{locale}, #{status}, #{welcomeMessage}, #{summary}, #{lastIntent}, #{recommendationsJson}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="updateSessionExtra">
+        UPDATE sg_session
+        SET summary = #{summary}, last_intent = #{lastIntent},
+            recommendations_json = #{recommendationsJson}, updated_at = #{now}
+        WHERE id = #{id}
+    </update>
+
+    <insert id="insertFeedback" parameterType="org.yan.lightofshadowbackend.shoppingguide.entity.ShoppingGuideFeedbackEntity" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sg_feedback (id, session_id, message_id, rating, feedback, created_at)
+        VALUES (#{id}, #{sessionId}, #{messageId}, #{rating}, #{feedback}, #{createdAt})
     </insert>
 
     <select id="selectSessionById" resultMap="SessionResultMap">
-        SELECT id, user_id, entry, source, locale, status, welcome_message, created_at, updated_at
+        SELECT id, user_id, entry, source, locale, status, welcome_message, summary, last_intent, recommendations_json, created_at, updated_at
         FROM sg_session WHERE id = #{id} LIMIT 1
     </select>
 
@@ -52,7 +76,7 @@
         SELECT COUNT(*) FROM sg_message WHERE session_id = #{sessionId}
     </select>
     <select id="selectLatestSessionByUserId" resultMap="SessionResultMap">
-        SELECT id, user_id, entry, source, locale, status, welcome_message, created_at, updated_at
+        SELECT id, user_id, entry, source, locale, status, welcome_message, summary, last_intent, recommendations_json, created_at, updated_at
         FROM sg_session
         WHERE user_id = #{userId}
         ORDER BY created_at DESC, id DESC

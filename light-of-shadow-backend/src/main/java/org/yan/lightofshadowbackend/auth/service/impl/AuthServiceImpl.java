@@ -118,6 +118,17 @@ public class AuthServiceImpl implements AuthService {
         // 邮箱注册必须验证码
         verificationCodeService.verifyAndConsume(email, VerificationCodeService.Scene.REGISTER.value(), request.verificationCode());
 
+        // 商家邀请码：匹配配置则注册 MERCHANT（配置为空则商家注册关闭）
+        String role = "USER";
+        String inviteCode = request.inviteCode() == null ? "" : request.inviteCode().trim();
+        if (!inviteCode.isEmpty()) {
+            String configured = authProperties.merchantInviteCode();
+            if (configured == null || configured.isBlank() || !configured.equals(inviteCode)) {
+                throw new ApiException(ErrorCode.BAD_REQUEST, "商家邀请码无效");
+            }
+            role = "MERCHANT";
+        }
+
         if (userMapper.selectByUsername(username) != null) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "用户名已被占用");
         }
@@ -133,7 +144,7 @@ public class AuthServiceImpl implements AuthService {
         user.setNickname(nickname.trim());
         user.setAvatarUrl("");
         user.setStatus(UserStatus.ACTIVE);
-        user.setRole("USER");
+        user.setRole(role);
         user.setCreatedAt(Instant.now());
         user.setUpdatedAt(Instant.now());
 
@@ -189,6 +200,9 @@ public class AuthServiceImpl implements AuthService {
             throw new ApiException(ErrorCode.BAD_REQUEST, "channel当前仅支持email");
         }
         String target = request.effectiveTarget();
+        if (target == null || target.isBlank()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "邮箱不能为空");
+        }
         String scene = request.scene() == null ? "" : request.scene().trim();
 
         // 登录 / 找回密码：仅已注册邮箱可收验证码
@@ -268,6 +282,9 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private String normalizeEmail(String email) {
+        if (email == null) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "邮箱不能为空");
+        }
         String trimmed = email.trim().toLowerCase(Locale.ROOT);
         if (!trimmed.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "邮箱格式不正确");

@@ -96,9 +96,22 @@ CREATE TABLE IF NOT EXISTS sg_session (
   locale VARCHAR(16) NOT NULL DEFAULT 'zh-CN',
   status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
   welcome_message VARCHAR(512) NOT NULL DEFAULT '',
+  summary TEXT,
+  last_intent TEXT,
+  recommendations_json TEXT,
   created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
 );
+
+CREATE TABLE IF NOT EXISTS sg_feedback (
+  id VARCHAR(64) NOT NULL PRIMARY KEY,
+  session_id VARCHAR(64) NOT NULL,
+  message_id VARCHAR(64) DEFAULT NULL,
+  rating INT NOT NULL,
+  feedback VARCHAR(500) DEFAULT NULL,
+  created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+);
+CREATE INDEX IF NOT EXISTS idx_sg_feedback_session ON sg_feedback (session_id);
 
 CREATE TABLE IF NOT EXISTS sg_message (
   id VARCHAR(64) NOT NULL PRIMARY KEY,

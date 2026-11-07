@@ -32,4 +32,16 @@ public class SessionEntity {
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
+
+    private String summary;
+    private String lastIntent;
+    private String recommendationsJson;
+
+    public String getSummary() { return summary; }
+    public void setSummary(String summary) { this.summary = summary; }
+    public String getLastIntent() { return lastIntent; }
+    public void setLastIntent(String lastIntent) { this.lastIntent = lastIntent; }
+    public String getRecommendationsJson() { return recommendationsJson; }
+    public void setRecommendationsJson(String recommendationsJson) { this.recommendationsJson = recommendationsJson; }
+
 }
