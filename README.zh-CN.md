@@ -22,7 +22,7 @@
 
 [English](README.md) | **简体中文**
 
-**下载 APK：[Release v0.1.0](https://github.com/flypiggpt/light-of-shadow/releases/tag/v0.1.0)** · 测试账号：`shopowner/shop123456`（商家）· `yan/yan`（用户）
+**下载 APK：[Release v0.1.0](https://github.com/flypiggpt/light-of-shadow/releases/tag/v0.1.0)**
 
 </div>
 
