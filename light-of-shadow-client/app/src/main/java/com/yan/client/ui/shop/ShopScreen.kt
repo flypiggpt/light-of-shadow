@@ -38,6 +38,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.yan.client.audio.TtsAlertManager
+import com.yan.client.settings.AppSettings
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -135,6 +140,9 @@ fun ShopScreen(
 
     var currentTab by rememberSaveable { mutableStateOf(ShopTab.Products) }
     // 子页面：商品详情 / 订单确认 / 订单详情 / 地址管理
+    val appContext = LocalContext.current
+    val ttsAlertManager = remember(appContext) { TtsAlertManager(appContext) }
+
     var subRoute by remember { mutableStateOf<String?>(null) }
     var detailProduct by remember { mutableStateOf<ShopProduct?>(null) }
     var detailProductLoading by remember { mutableStateOf(false) }
@@ -160,6 +168,9 @@ fun ShopScreen(
     var guideActions by remember { mutableStateOf(emptyList<GuideAction>()) }
 
     suspend fun showMessage(message: String) {
+        if (AppSettings.ttsEnabled) {
+            ttsAlertManager.speakNow(message)
+        }
         snackbarHostState.showSnackbar(message)
     }
 
@@ -602,6 +613,9 @@ fun ShopScreen(
                     ?: "我暂时没有找到完全匹配的商品，你可以再补充预算或偏好。"
 
                 guideMessages = guideMessages + GuideMessage(role = "assistant", content = assistantText)
+                if (AppSettings.ttsEnabled) {
+                    ttsAlertManager.speakNow(assistantText)
+                }
                 guideRecommendations = parseGuideRecommendations(resp.data)
                 guideActions = parseGuideActions(resp.data)
             } catch (e: Exception) {
@@ -668,7 +682,7 @@ fun ShopScreen(
             "show_more" -> sendGuideMessage("请换一批推荐")
             "view_cart" -> currentTab = ShopTab.Cart
             else -> scope.launch {
-                showMessage("该导购动作暂未接入：${action.label}")
+                showMessage("「${action.label}」这个操作暂时不支持，可以换个方式试试")
             }
         }
     }
@@ -1335,9 +1349,9 @@ private fun CartList(
                     Text(line.productName, color = DarkGoldTextPrimary, style = MaterialTheme.typography.titleMedium)
                     Text(centsToPrice(line.unitPriceCent), color = DarkGoldHighlight, style = MaterialTheme.typography.bodyMedium)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        QuantityChip(text = "-", onClick = { onDecrease(line) })
+                        QuantityChip(text = "-", contentDescription = stringResource(R.string.shop_qty_decrease), onClick = { onDecrease(line) })
                         Text(line.quantity.toString(), color = DarkGoldTextPrimary)
-                        QuantityChip(text = "+", onClick = { onIncrease(line) })
+                        QuantityChip(text = "+", contentDescription = stringResource(R.string.shop_qty_increase), onClick = { onIncrease(line) })
                         Spacer(modifier = Modifier.weight(1f))
                         TextButton(onClick = { onRemove(line) }) {
                             Text(stringResource(R.string.shop_remove), color = DarkGoldPrimary)
@@ -1484,12 +1498,14 @@ private fun ActionButton(
 @Composable
 private fun QuantityChip(
     text: String,
+    contentDescription: String,
     onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .width(28.dp)
             .height(28.dp)
+            .semantics { this.contentDescription = contentDescription }
             .background(DarkGoldCard, RoundedCornerShape(8.dp))
             .border(
                 BorderStroke(1.dp, DarkGoldPrimary.copy(alpha = 0.7f)),
