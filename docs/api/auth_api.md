@@ -70,13 +70,15 @@ Base URL: `http://<host>:8080/api`
   "email": "alice@example.com",
   "password": "pwd12345",
   "nickname": "Alice",
-  "verificationCode": "482913"
+  "verificationCode": "482913",
+  "inviteCode": ""
 }
 ```
 
 说明：
 - `username`：仅字母/数字，全局唯一
 - `email`：合法邮箱，全局唯一；**必须** `verificationCode`（scene=`register`）
+- `inviteCode`：可选。填且匹配服务端配置的商家邀请码（`app.auth.merchant-invite-code`）时注册为 `MERCHANT`，否则为普通 `USER`；填错直接 400
 - 密码不限制最少 8 位
 
 成功响应：
