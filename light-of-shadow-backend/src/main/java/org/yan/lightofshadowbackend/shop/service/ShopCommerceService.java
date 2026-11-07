@@ -52,6 +52,9 @@ public interface ShopCommerceService {
     /** 取消订单（仅 PENDING_PAYMENT），恢复库存 */
     OrderDetail cancelOrder(String userId, String orderId);
 
+    /** 删除订单（任意状态）；待支付先恢复库存，再删除订单与条目 */
+    void deleteOrder(String userId, String orderId);
+
     record AddressLine(String id, String receiverName, String phone, String detail, boolean isDefault) {
     }
 

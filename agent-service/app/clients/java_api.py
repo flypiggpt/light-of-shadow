@@ -219,6 +219,21 @@ class JavaApiClient:
             request_id=request_id,
         )
 
+    async def delete_order(
+        self,
+        *,
+        order_id: str,
+        user_token: str | None = None,
+        request_id: str | None = None,
+    ) -> dict[str, Any]:
+        """DELETE /api/shop/orders/{id} 删除订单（待支付先恢复库存）。"""
+        return await self._request_json(
+            "DELETE",
+            f"/api/shop/orders/{order_id}",
+            user_token=user_token,
+            request_id=request_id,
+        )
+
     # ------------------------------------------------------------------
     # 内部实现
     # ------------------------------------------------------------------

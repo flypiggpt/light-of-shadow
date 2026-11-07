@@ -53,5 +53,9 @@
     UPDATE shop_order SET status = #{status}, updated_at = #{now}
     WHERE id = #{id}
   </update>
+
+  <delete id="deleteByIdAndUserId">
+    DELETE FROM shop_order WHERE id = #{id} AND user_id = #{userId}
+  </delete>
 </mapper>
 

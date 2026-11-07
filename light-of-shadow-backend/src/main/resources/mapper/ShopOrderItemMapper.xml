@@ -20,5 +20,9 @@
   <select id="selectByOrderId" resultMap="OrderItemResult">
     SELECT * FROM shop_order_item WHERE order_id = #{orderId} ORDER BY id ASC
   </select>
+
+  <delete id="deleteByOrderId">
+    DELETE FROM shop_order_item WHERE order_id = #{orderId}
+  </delete>
 </mapper>
 

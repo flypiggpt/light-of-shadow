@@ -20,6 +20,7 @@ from app.agent.nodes import (  # noqa: E402
 from app.agent.state import AgentDeps, ToolResult  # noqa: E402
 from app.tools.base import ToolContext
 from app.tools.cancel_order import CancelOrderTool  # noqa: E402
+from app.tools.delete_order import DeleteOrderTool  # noqa: E402
 from app.tools.query_orders import QueryOrdersTool  # noqa: E402
 from app.tools.track_order import TrackOrderTool  # noqa: E402
 
@@ -39,6 +40,10 @@ class _FakeClient:
     async def cancel_order(self, **kwargs: Any) -> dict[str, Any]:
         self.calls.append(("cancel_order", kwargs))
         return {"orderId": kwargs.get("order_id"), "status": "CANCELED"}
+
+    async def delete_order(self, **kwargs: Any) -> dict[str, Any]:
+        self.calls.append(("delete_order", kwargs))
+        return {"orderId": kwargs.get("order_id"), "deleted": True}
 
 
 class _FakeLLM:
@@ -88,6 +93,20 @@ class TestOrderTools:
         assert client.calls[0][0] == "cancel_order"
         assert client.calls[0][1]["order_id"] == "o_9"
 
+    async def test_delete_order_calls_delete(self):
+        client = _FakeClient()
+        tool = DeleteOrderTool(client)  # type: ignore[arg-type]
+        result = await tool.execute(ToolContext(user_token="tok"), order_id="o_9")
+        assert result.ok
+        assert client.calls[0][0] == "delete_order"
+        assert client.calls[0][1]["order_id"] == "o_9"
+
+    async def test_delete_order_requires_token(self):
+        tool = DeleteOrderTool(_FakeClient())  # type: ignore[arg-type]
+        result = await tool.execute(ToolContext(), order_id="o_1")
+        assert not result.ok
+        assert "登录态" in (result.error or "")
+
 
 # ---------------------------------------------------------------------------
 # 路由与意图
@@ -96,10 +115,11 @@ class TestOrderTools:
 
 class TestOrderRouting:
     def test_intents_registered(self):
-        assert {"query_orders", "track_order", "cancel_order"} <= KNOWN_INTENTS
+        assert {"query_orders", "track_order", "cancel_order", "delete_order"} <= KNOWN_INTENTS
         assert INTENT_TOOL_MAP["query_orders"] == "query_orders"
         assert INTENT_TOOL_MAP["track_order"] == "track_order"
         assert INTENT_TOOL_MAP["cancel_order"] == "cancel_order"
+        assert INTENT_TOOL_MAP["delete_order"] == "delete_order"
 
     def test_compare_intent_maps_to_real_tool_name(self):
         """存量 bug 回归：compare 工具名是 compare_products。"""
@@ -127,6 +147,15 @@ class TestOrderRouting:
         assert parsed["name"] == "cancel_order"
         assert parsed["needs_clarify"] is True
         assert parsed["missing_slots"] == ["orderId"]
+
+    def test_heuristic_delete_order(self):
+        parsed = _heuristic_intent("删除订单 20260526001")
+        assert parsed["name"] == "delete_order"
+        assert parsed["entities"]["orderId"] == "20260526001"
+        assert parsed["needs_clarify"] is False
+        parsed = _heuristic_intent("帮我删掉那笔订单")
+        assert parsed["name"] == "delete_order"
+        assert parsed["needs_clarify"] is True
 
     def test_heuristic_logistics_goes_track_not_faq(self):
         assert _heuristic_intent("我的物流到哪了")["name"] == "track_order"
@@ -172,6 +201,15 @@ class TestIntentNodeOrderRules:
             {"user_profile": {}, "messages": [{"role": "user", "content": "取消 20260526001"}]},
         )
         assert out["needs_clarify"] is False
+
+    def test_delete_without_order_id_forces_clarify(self):
+        out = _intent(
+            '{"name": "delete_order", "confidence": 0.9, "entities": {},'
+            ' "needs_clarify": false, "missing_slots": []}',
+            {"user_profile": {}, "messages": [{"role": "user", "content": "删除订单"}]},
+        )
+        assert out["needs_clarify"] is True
+        assert "orderId" in out["missing_slots"]
 
     def test_query_orders_never_clarifies(self):
         out = _intent(

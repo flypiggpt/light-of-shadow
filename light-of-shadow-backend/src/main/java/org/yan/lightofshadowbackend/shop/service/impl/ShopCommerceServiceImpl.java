@@ -240,6 +240,24 @@ public class ShopCommerceServiceImpl implements ShopCommerceService {
         return toOrderDetail(order);
     }
 
+    @Override
+    @Transactional
+    public void deleteOrder(String userId, String orderId) {
+        ShopOrderEntity order = shopOrderMapper.selectByIdAndUserId(orderId, userId);
+        if (order == null) {
+            throw new ApiException(ErrorCode.NOT_FOUND, "订单不存在");
+        }
+        // 待支付订单直接删除时先恢复库存（与取消同语义，保证不吞库存）
+        if (order.getStatus() == OrderStatus.PENDING_PAYMENT) {
+            List<ShopOrderItemEntity> items = shopOrderItemMapper.selectByOrderId(orderId);
+            for (ShopOrderItemEntity item : items) {
+                productMapper.increaseStock(item.getProductId(), item.getQuantity());
+            }
+        }
+        shopOrderItemMapper.deleteByOrderId(orderId);
+        shopOrderMapper.deleteByIdAndUserId(orderId, userId);
+    }
+
     private OrderDetail toOrderDetail(ShopOrderEntity order) {
         List<ShopOrderItemEntity> items = shopOrderItemMapper.selectByOrderId(order.getId());
         List<OrderItemLine> lines = items.stream()

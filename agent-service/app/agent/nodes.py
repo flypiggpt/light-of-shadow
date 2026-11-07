@@ -54,6 +54,7 @@ KNOWN_INTENTS = frozenset(
         "query_orders",
         "track_order",
         "cancel_order",
+        "delete_order",
         "chitchat",
         "other",
     }
@@ -88,6 +89,10 @@ _INTENT_ALIASES = {
     "订单详情": "track_order",
     "cancel": "cancel_order",
     "取消订单": "cancel_order",
+    "delete": "delete_order",
+    "删除订单": "delete_order",
+    "删掉订单": "delete_order",
+    "移除订单": "delete_order",
     "smalltalk": "chitchat",
     "闲聊": "chitchat",
 }
@@ -103,6 +108,7 @@ INTENT_TOOL_MAP = {
     "query_orders": "query_orders",
     "track_order": "track_order",
     "cancel_order": "cancel_order",
+    "delete_order": "delete_order",
 }
 
 _SLOT_LABELS = {
@@ -206,8 +212,8 @@ def make_nodes(deps: AgentDeps) -> dict[str, Callable[[Mapping[str, Any]], dict[
         needs_clarify = bool(parsed.get("needs_clarify")) or (
             name in ("recommend_product", "search_product") and confidence < 0.5
         )
-        # 订单操作硬规则：查详情/取消必须有单号，缺了必追问（取消是写操作）
-        if name in ("track_order", "cancel_order") and not entities.get("orderId"):
+        # 订单操作硬规则：查详情/取消/删除必须有单号，缺了必追问（取消/删除是写操作）
+        if name in ("track_order", "cancel_order", "delete_order") and not entities.get("orderId"):
             needs_clarify = True
             if "orderId" not in missing:
                 missing = missing + ["orderId"]
@@ -382,7 +388,22 @@ def _heuristic_intent(text: str) -> dict[str, Any]:
     # 订单类意图优先（“订单详情”也会命中“详情”，须在商品详情之前判）
     id_match = re.search(r"\b(\d{10,20})\b", text)
     order_entities: dict[str, Any] = {"orderId": id_match.group(1)} if id_match else {}
-    if any(k in text for k in ("取消订单", "退掉订单", "不要这单", "cancel order")) or "cancel_order" in lowered:
+    delete_hit = any(k in text for k in ("删除订单", "删掉订单", "移除订单", "delete order")) or (
+        ("删除" in text or "删掉" in text or "移除" in text) and "订单" in text
+    )
+    if delete_hit or "delete_order" in lowered:
+        has_id = bool(order_entities)
+        return {
+            "name": "delete_order",
+            "confidence": 0.5,
+            "entities": order_entities,
+            "needs_clarify": not has_id,
+            "missing_slots": [] if has_id else ["orderId"],
+        }
+    cancel_hit = any(k in text for k in ("取消订单", "退掉订单", "不要这单", "cancel order")) or (
+        ("取消" in text or "退掉" in text) and "订单" in text
+    )
+    if cancel_hit or "cancel_order" in lowered:
         has_id = bool(order_entities)
         return {
             "name": "cancel_order",
@@ -480,6 +501,8 @@ def _build_tool_args(intent_name: str, state: Mapping[str, Any]) -> dict[str, An
     if tool_name == "track_order":
         return {"order_id": pick("orderId", "order_id")}
     if tool_name == "cancel_order":
+        return {"order_id": pick("orderId", "order_id")}
+    if tool_name == "delete_order":
         return {"order_id": pick("orderId", "order_id")}
     return {"question": text[:200]}
 

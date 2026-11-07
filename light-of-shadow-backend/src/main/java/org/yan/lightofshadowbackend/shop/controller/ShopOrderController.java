@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Map;
 
 import java.util.List;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -72,6 +73,19 @@ public class ShopOrderController {
         String userId = authSupport.resolveUserId(auth);
         var d = shopCommerceService.cancelOrder(userId, id);
         return ApiResponse.success("订单已取消", toDetailMap(d));
+    }
+
+    /** 删除订单（任意状态；待支付先恢复库存） */
+    @DeleteMapping("/{id}")
+    public ApiResponse<Map<String, Object>> delete(
+            @PathVariable("id") String id,
+            @RequestHeader(value = "Authorization", required = false) String auth) {
+        String userId = authSupport.resolveUserId(auth);
+        shopCommerceService.deleteOrder(userId, id);
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("orderId", id);
+        data.put("deleted", true);
+        return ApiResponse.success("订单已删除", data);
     }
 
     private Map<String, Object> toDetailMap(ShopCommerceService.OrderDetail d) {

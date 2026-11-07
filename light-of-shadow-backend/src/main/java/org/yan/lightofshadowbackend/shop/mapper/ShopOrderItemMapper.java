@@ -11,5 +11,7 @@ public interface ShopOrderItemMapper {
     int insert(ShopOrderItemEntity orderItem);
 
     List<ShopOrderItemEntity> selectByOrderId(@Param("orderId") String orderId);
+
+    int deleteByOrderId(@Param("orderId") String orderId);
 }
 

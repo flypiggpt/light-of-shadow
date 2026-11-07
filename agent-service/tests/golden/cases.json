@@ -528,6 +528,19 @@
           "name": "track_order"
         }
       }
+    },
+    {
+      "id": "tool-014",
+      "type": "tool",
+      "query": "帮我删除订单 20260526001",
+      "expected": {
+        "tool": {
+          "name": "delete_order",
+          "args_contains": {
+            "order_id": "20260526001"
+          }
+        }
+      }
     }
   ]
 }
