@@ -200,6 +200,9 @@ public class AuthServiceImpl implements AuthService {
             throw new ApiException(ErrorCode.BAD_REQUEST, "channel当前仅支持email");
         }
         String target = request.effectiveTarget();
+        if (target == null || target.isBlank()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "邮箱不能为空");
+        }
         String scene = request.scene() == null ? "" : request.scene().trim();
 
         // 登录 / 找回密码：仅已注册邮箱可收验证码
@@ -279,6 +282,9 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private String normalizeEmail(String email) {
+        if (email == null) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "邮箱不能为空");
+        }
         String trimmed = email.trim().toLowerCase(Locale.ROOT);
         if (!trimmed.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "邮箱格式不正确");

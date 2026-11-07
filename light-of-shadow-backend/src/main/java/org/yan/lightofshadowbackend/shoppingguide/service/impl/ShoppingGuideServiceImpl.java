@@ -225,6 +225,7 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
         persistMessage(assistantMessage);
 
         session.lastUserMessage = text;
+        session.summary = summarize(session.summary, text);
         session.updatedAt = now;
         refreshSessionFromAgent(session, data);
         persistSessionExtra(session);

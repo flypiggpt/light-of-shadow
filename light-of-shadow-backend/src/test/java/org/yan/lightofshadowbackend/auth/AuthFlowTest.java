@@ -119,6 +119,13 @@ class AuthFlowTest {
     }
 
     @Test
+    void sendCodeWithoutTargetReturns400Not500() throws Exception {
+        // 缺邮箱参数应回 400（此前 NPE → 500）
+        JsonNode resp = postJson("/api/auth/code", "{\"scene\":\"register\"}");
+        assertEquals(400, resp.get("code").asInt());
+    }
+
+    @Test
     void registerWithMerchantInviteCreatesMerchant() throws Exception {
         String code = codeService.send("m@example.com", "register").code();
         JsonNode resp = postJson("/api/auth/register",
