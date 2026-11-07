@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -164,7 +165,8 @@ def _match_tool(prediction: Mapping[str, Any], expected_tool: Mapping[str, Any])
     for call in calls:
         if not isinstance(call, Mapping) or call.get("name") != expected_tool.get("name"):
             continue
-        args = call.get("args") or {}
+        # 真路由产出 arguments，校准桩用 args，两种都认
+        args = call.get("args") or call.get("arguments") or {}
         if not isinstance(args, Mapping):
             continue
         ok = True
@@ -181,7 +183,9 @@ def _match_tool(prediction: Mapping[str, Any], expected_tool: Mapping[str, Any])
 def _match_answer(answer: str, expected: Mapping[str, Any]) -> bool:
     keywords: Sequence[str] = expected.get("answer_contains") or []
     mode = expected.get("match") or "all"
-    hits = [kw for kw in keywords if kw in answer]
+    # 中英文里空格多为排版差异（“48 小时”vs“48小时”），归一化后子串匹配
+    normalized = re.sub(r"\s+", "", answer or "")
+    hits = [kw for kw in keywords if re.sub(r"\s+", "", kw) in normalized]
     if not hits:
         return False
     return len(hits) == len(keywords) if mode == "all" else True
