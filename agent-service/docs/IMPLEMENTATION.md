@@ -128,9 +128,16 @@ START → guard（输入消毒/防注入） → intent（LLM 意图+槽位）
 **做了什么**：质量可量化、回归可自动化。
 
 **如何实现**：
-- `tests/golden/`：40 条评测样例（检索/工具/回答）
+- `tests/golden/`：40 条评测样例（检索/工具/回答/混合）+ 离线评测框架
+  - **检索评测**（离线必跑）：HashEmbedder + BM25 + RRF 管线，指标命中率 / MRR
+  - **真路由评测**（`real_agent.py`）：与线上同一条代码路径（意图节点 → 工具路由 → 检索 + 回复节点），温度固定 0 可复现，工具执行替换为离线语料（评测不依赖真实 Java）
+  - **口径校准**：`run_eval.py --calibrate` 用满分桩验证评分器本身
+  - **基线门禁**：`baseline.json` 阈值，`python tests/golden/run_eval.py` 出 JSON/Markdown 报告并卡线
+- CI（`.github/workflows/agent-quality.yml`）：单测 + 离线检索评测每个 PR 必跑；LLM 真路由评测对照基线，**跌破基线 CI 变红挡合并**
 - `tests/test_profile.py`：用户画像学习/注入/追问抑制的单测与回归
-- 44 项测试覆盖：降级链路自检、并发 checkpoint、跨轮恢复、RRF 融合、指标百分位、token 成本、画像闭环
+- 73 项测试覆盖：降级链路自检、并发 checkpoint、跨轮恢复、RRF 融合、指标百分位、token 成本、画像闭环、订单工具与网关
+
+**当前基线**（temp=0，deepseek）：检索命中率 1.0 / MRR 0.9、工具调用准确率 1.0、回答正确率 1.0。
 
 ### 10. 用户画像（记忆偏好）
 
