@@ -22,6 +22,8 @@ public interface ShopOrderMapper {
 
     ShopOrderEntity selectByIdAndUserId(@Param("id") String id, @Param("userId") String userId);
 
+    ShopOrderEntity selectByOrderNoAndUserId(@Param("orderNo") String orderNo, @Param("userId") String userId);
+
     int updateStatusById(@Param("id") String id, @Param("status") String status,
                          @Param("now") java.time.Instant now);
 

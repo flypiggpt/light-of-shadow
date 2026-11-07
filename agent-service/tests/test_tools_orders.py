@@ -136,6 +136,15 @@ class TestOrderRouting:
             "order_id": "o_2"
         }
 
+    def test_order_id_prefix_restored(self):
+        """LLM 丢掉 o_ 前缀时补回；orderNo 原样透传（Java 侧兼容查询）。"""
+        assert _build_tool_args("delete_order", {"entities": {"orderId": "3769cc6f4cc0"}}) == {
+            "order_id": "o_3769cc6f4cc0"
+        }
+        assert _build_tool_args("delete_order", {"entities": {"orderId": "20261106172508d11965"}}) == {
+            "order_id": "20261106172508d11965"
+        }
+
     def test_heuristic_cancel_with_id(self):
         parsed = _heuristic_intent("帮我取消订单 20260526001")
         assert parsed["name"] == "cancel_order"

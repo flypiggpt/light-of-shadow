@@ -499,12 +499,19 @@ def _build_tool_args(intent_name: str, state: Mapping[str, Any]) -> dict[str, An
             order_args["status"] = status.upper()
         return order_args
     if tool_name == "track_order":
-        return {"order_id": pick("orderId", "order_id")}
+        return {"order_id": _normalize_order_id(pick("orderId", "order_id"))}
     if tool_name == "cancel_order":
-        return {"order_id": pick("orderId", "order_id")}
+        return {"order_id": _normalize_order_id(pick("orderId", "order_id"))}
     if tool_name == "delete_order":
-        return {"order_id": pick("orderId", "order_id")}
+        return {"order_id": _normalize_order_id(pick("orderId", "order_id"))}
     return {"question": text[:200]}
+
+
+def _normalize_order_id(value: Any) -> Any:
+    """LLM 常把 o_ 前缀当噪音丢掉；裸 12 位十六进制补回 o_（订单 id 格式）。"""
+    if isinstance(value, str) and re.fullmatch(r"[0-9a-f]{12}", value.strip()):
+        return "o_" + value.strip()
+    return value
 
 
 def _invoke_with_retry(deps: AgentDeps, name: str, arguments: Mapping[str, Any]) -> ToolResult:
