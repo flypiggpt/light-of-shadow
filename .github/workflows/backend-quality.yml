@@ -1,0 +1,28 @@
+name: backend-quality
+
+# 后端测试门禁：mvn test（H2 内存库，无需外部依赖），挂了挡合并。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "light-of-shadow-backend/**"
+      - ".github/workflows/backend-quality.yml"
+  pull_request:
+    paths:
+      - "light-of-shadow-backend/**"
+      - ".github/workflows/backend-quality.yml"
+
+jobs:
+  java-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: 全量测试（含 contextLoads / 鉴权 / 下单链路）
+        working-directory: light-of-shadow-backend
+        run: mvn test

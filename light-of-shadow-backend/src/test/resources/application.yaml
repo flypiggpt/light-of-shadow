@@ -1,0 +1,64 @@
+# 测试配置：H2（MySQL 兼容模式）+ 假密钥，不依赖任何外部服务
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+  # 不配 spring.mail.host → 走 DevCodeSender（验证码日志回显）
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+  mapper-locations: classpath:/mapper/*.xml
+  type-aliases-package: org.yan.lightofshadowbackend.entity
+
+server:
+  port: 0
+
+app:
+  auth:
+    code:
+      ttl: 5m
+      resend-interval: 0s
+      daily-limit: 1000
+      max-attempts: 100
+      length: 6
+    jwt:
+      issuer: test
+      secret: test-secret-for-unit-tests-only-0123456789abcdef
+    access-token-ttl: 2h
+    refresh-token-ttl: 30d
+  storage:
+    object:
+      type: minio
+      minio:
+        endpoint: http://127.0.0.1:19000
+        access-key: test
+        secret-key: test
+        bucket: test
+        public-base-url: http://127.0.0.1:19000
+        presign-ttl-seconds: 900
+      local:
+        base-dir: ${java.io.tmpdir}/test-uploads
+        base-url: /media
+        max-file-size-bytes: 5242880
+
+deepseek:
+  api-key: test
+  model: deepseek-chat
+  base-url: https://api.deepseek.com
+
+agent:
+  base-url: http://127.0.0.1:8000
+  connect-timeout-ms: 200
+  read-timeout-ms: 500
+  fallback-enabled: true

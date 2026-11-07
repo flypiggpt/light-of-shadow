@@ -31,6 +31,12 @@ Spring Boot 3 + MyBatis 后端,提供登录鉴权、商城、导购问答能力�
 - 部署时复制为 `application.yaml` 并填写 `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` / `JWT_SECRET` / `DEEPSEEK_API_KEY` 等环境变量
 - 敏感配置(application.yaml)已被 `.gitignore` 排除,不会入库
 
+## 测试
+
+- `mvn test` 全量跑（H2 内存库 + `src/test/resources/`，**无需 MySQL / MinIO / 网络**）
+- 覆盖：Spring 上下文自检（contextLoads）、鉴权链路（登录/refresh 轮换/登出）、下单链路（加购/下单扣库存/支付/取消/删除恢复库存，含订单号删除）、网关转发与降级、验证码服务
+- CI：`.github/workflows/backend-quality.yml`，后端改动自动跑，挂了挡合并
+
 ## 部署
 
 - 一键打包部署:`./deploy.sh`(mvn package → 停旧进程 → 启动新 jar)

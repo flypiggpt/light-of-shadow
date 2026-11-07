@@ -226,6 +226,7 @@ public class ShopCommerceServiceImpl implements ShopCommerceService {
         }
         // 模拟支付成功
         shopOrderMapper.updateStatusById(orderId, OrderStatus.PAID.name(), Instant.now());
+        order.setStatus(OrderStatus.PAID);
         return toOrderDetail(order);
     }
 
