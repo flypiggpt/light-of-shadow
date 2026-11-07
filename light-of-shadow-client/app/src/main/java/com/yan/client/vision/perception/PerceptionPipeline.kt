@@ -57,6 +57,7 @@ class PerceptionPipeline(
     private val pendingSem = AtomicReference<Frame?>(null)
     private val lastCandidates = AtomicReference<List<ObstacleCandidate>>(emptyList())
     @Volatile private var closed = false
+    @Volatile private var lastDiagMs = 0L
 
     /** 取帧入口：轻量分发，立即归还 ImageProxy（不再阻塞 cameraExecutor 跑推理）。 */
     fun onFrame(imageProxy: ImageProxy) {
@@ -89,7 +90,12 @@ class PerceptionPipeline(
             try {
                 while (true) {
                     val f = pendingDepth.getAndSet(null) ?: break
-                    runDepthStep(f)
+                    try {
+                        runDepthStep(f)
+                    } catch (t: Throwable) {
+                        // 推理失败不杀 App：跳过本帧，下一帧继续（必要时降级纯 YOLO）
+                        android.util.Log.w("PerceptionPipeline", "depth step failed", t)
+                    }
                 }
             } finally {
                 depthBusy.set(false)
@@ -104,6 +110,18 @@ class PerceptionPipeline(
         val depth = raw.copy(metricOk = ground?.metricPlausible == true)
         val candidates = CandidateExtractor.extract(depth, ground, frame.width, frame.height)
         lastCandidates.set(candidates)
+        // 诊断（节流 ~3s 一行）：定位候选产出丢在哪一级
+        val nowMsDiag = System.currentTimeMillis()
+        if (nowMsDiag - lastDiagMs > 3000L) {
+            lastDiagMs = nowMsDiag
+            val vals = depth.values.filter { it > 0.01f && it.isFinite() }
+            val sorted = vals.sorted()
+            val med = sorted.getOrNull(sorted.size / 2) ?: -1f
+            android.util.Log.i("PerceptionPipeline",
+                "diag depth[min=${vals.minOrNull()},med=$med,max=${vals.maxOrNull()}] " +
+                "ground=${ground != null}(metric=${ground?.metricPlausible}) " +
+                "candidates=${candidates.size} labeled=${candidates.count { it.label != null }}")
+        }
 
         // 触发式标注：候选缺标签 + 防抖窗口已过 → 全帧 YOLO（绝不逐候选裁剪）
         if (cache.shouldTrigger(System.currentTimeMillis()) &&
@@ -126,7 +144,11 @@ class PerceptionPipeline(
             try {
                 while (true) {
                     val f = pendingSem.getAndSet(null) ?: break
-                    runSemStep(f)
+                    try {
+                        runSemStep(f)
+                    } catch (t: Throwable) {
+                        android.util.Log.w("PerceptionPipeline", "semantic step failed", t)
+                    }
                 }
             } finally {
                 semBusy.set(false)
