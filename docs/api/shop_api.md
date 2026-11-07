@@ -239,6 +239,22 @@ Query 参数：
 
 仅 `PENDING_PAYMENT` 可取消 → 状态变为 `CANCELED`，**自动恢复库存**。
 
+## 删除订单
+
+`DELETE /api/shop/orders/{id}`
+
+删除订单记录（任意状态）。`PENDING_PAYMENT` 直接删除时**先自动恢复库存**（与取消同语义）；订单条目一并删除，删除后不可恢复。
+
+成功响应：
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": { "orderId": "o_20260526001", "deleted": true }
+}
+```
+
 ## 收货地址
 
 | 方法 | 路径 | 说明 |

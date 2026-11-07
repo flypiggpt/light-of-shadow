@@ -49,9 +49,17 @@
     SELECT * FROM shop_order WHERE id = #{id} AND user_id = #{userId} LIMIT 1
   </select>
 
+  <select id="selectByOrderNoAndUserId" resultMap="OrderResult">
+    SELECT * FROM shop_order WHERE order_no = #{orderNo} AND user_id = #{userId} LIMIT 1
+  </select>
+
   <update id="updateStatusById">
     UPDATE shop_order SET status = #{status}, updated_at = #{now}
     WHERE id = #{id}
   </update>
+
+  <delete id="deleteByIdAndUserId">
+    DELETE FROM shop_order WHERE id = #{id} AND user_id = #{userId}
+  </delete>
 </mapper>
 

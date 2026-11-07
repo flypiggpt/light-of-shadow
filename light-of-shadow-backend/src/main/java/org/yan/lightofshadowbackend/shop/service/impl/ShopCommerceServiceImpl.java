@@ -198,11 +198,20 @@ public class ShopCommerceServiceImpl implements ShopCommerceService {
     @Override
     @Transactional(readOnly = true)
     public OrderDetail getOrderDetail(String userId, String orderId) {
-        ShopOrderEntity order = shopOrderMapper.selectByIdAndUserId(orderId, userId);
+        ShopOrderEntity order = requireOrder(userId, orderId);
+        return toOrderDetail(order);
+    }
+
+    /** 按订单 ID 或订单号查单（用户口播的“订单号”是 order_no），必须属于该用户。 */
+    private ShopOrderEntity requireOrder(String userId, String orderIdOrNo) {
+        ShopOrderEntity order = shopOrderMapper.selectByIdAndUserId(orderIdOrNo, userId);
+        if (order == null) {
+            order = shopOrderMapper.selectByOrderNoAndUserId(orderIdOrNo, userId);
+        }
         if (order == null) {
             throw new ApiException(ErrorCode.NOT_FOUND, "订单不存在");
         }
-        return toOrderDetail(order);
+        return order;
     }
 
     @Override
@@ -223,21 +232,33 @@ public class ShopCommerceServiceImpl implements ShopCommerceService {
     @Override
     @Transactional
     public OrderDetail cancelOrder(String userId, String orderId) {
-        ShopOrderEntity order = shopOrderMapper.selectByIdAndUserId(orderId, userId);
-        if (order == null) {
-            throw new ApiException(ErrorCode.NOT_FOUND, "订单不存在");
-        }
+        ShopOrderEntity order = requireOrder(userId, orderId);
         if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "仅待支付订单可取消");
         }
         // 恢复库存
-        List<ShopOrderItemEntity> items = shopOrderItemMapper.selectByOrderId(orderId);
+        List<ShopOrderItemEntity> items = shopOrderItemMapper.selectByOrderId(order.getId());
         for (ShopOrderItemEntity item : items) {
             productMapper.increaseStock(item.getProductId(), item.getQuantity());
         }
-        shopOrderMapper.updateStatusById(orderId, OrderStatus.CANCELED.name(), Instant.now());
+        shopOrderMapper.updateStatusById(order.getId(), OrderStatus.CANCELED.name(), Instant.now());
         order.setStatus(OrderStatus.CANCELED);
         return toOrderDetail(order);
+    }
+
+    @Override
+    @Transactional
+    public void deleteOrder(String userId, String orderId) {
+        ShopOrderEntity order = requireOrder(userId, orderId);
+        // 待支付订单直接删除时先恢复库存（与取消同语义，保证不吞库存）
+        if (order.getStatus() == OrderStatus.PENDING_PAYMENT) {
+            List<ShopOrderItemEntity> items = shopOrderItemMapper.selectByOrderId(order.getId());
+            for (ShopOrderItemEntity item : items) {
+                productMapper.increaseStock(item.getProductId(), item.getQuantity());
+            }
+        }
+        shopOrderItemMapper.deleteByOrderId(order.getId());
+        shopOrderMapper.deleteByIdAndUserId(order.getId(), userId);
     }
 
     private OrderDetail toOrderDetail(ShopOrderEntity order) {

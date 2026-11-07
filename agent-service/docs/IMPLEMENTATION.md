@@ -53,14 +53,14 @@ Android ──► Java（账号/商品/订单）──► MySQL
 - 失败返回**降级话术**（不是裸异常）
 - `TokenUsage` 累计 prompt/completion tokens
 
-### 3. 工具层（5 个业务工具）
+### 3. 工具层（9 个业务工具）
 
 **做了什么**：Agent 调用真实业务能力，不只会说话。
 
 **如何实现**：
 - `app/tools/base.py`：pydantic 参数校验、单工具超时、失败重试一次、**连续失败熔断**
-- 5 个工具：`search_products` / `get_product` / `add_cart` / `compare_products` / `faq`
-- `app/clients/java_api.py`：httpx 调 Java 内部 API，内部 token + **用户 token 透传**
+- 9 个工具：`search_products` / `get_product` / `add_cart` / `compare_products` / `faq` / `query_orders` / `track_order` / `cancel_order` / `delete_order`（S2 订单工具，需用户 token；取消仅限待支付；删除任意状态、待支付先恢复库存）
+- `app/clients/java_api.py`：httpx 调 Java 内部 API，内部 token + **用户 token 透传**；每次请求独立连接（跨事件循环安全）
 
 ### 4. LangGraph 状态机
 
@@ -77,6 +77,8 @@ START → guard（输入消毒/防注入） → intent（LLM 意图+槽位）
 任一节点异常 → error → degrade（降级话术）→ END
 ```
 
+- 意图 12 种：推荐/搜索/对比/加购/详情 + **查订单/查物流/取消订单/删除订单** + FAQ/闲聊/其他；`INTENT_TOOL_MAP` 1:1 路由
+- 订单写操作硬规则：`track_order`/`cancel_order`/`delete_order` 缺 orderId 必追问
 - 解析失败走**规则启发式**兜底
 - 防 prompt 注入：system 角色锁定 + nonce 边界 + 控制字符消毒 + 输出过滤
 - `AgentDeps` 依赖注入，LLMClient/ToolExecutor 窄协议解耦，可测

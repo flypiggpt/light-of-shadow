@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any, Callable, Mapping
 
 from app.memory.profile import UserProfile, render_profile, wrap_profile_block
@@ -50,6 +51,10 @@ KNOWN_INTENTS = frozenset(
         "add_cart",
         "product_detail",
         "faq",
+        "query_orders",
+        "track_order",
+        "cancel_order",
+        "delete_order",
         "chitchat",
         "other",
     }
@@ -73,6 +78,21 @@ _INTENT_ALIASES = {
     "qa": "faq",
     "question": "faq",
     "问答": "faq",
+    "orders": "query_orders",
+    "my_orders": "query_orders",
+    "查订单": "query_orders",
+    "我的订单": "query_orders",
+    "订单列表": "query_orders",
+    "track": "track_order",
+    "order_detail": "track_order",
+    "物流": "track_order",
+    "订单详情": "track_order",
+    "cancel": "cancel_order",
+    "取消订单": "cancel_order",
+    "delete": "delete_order",
+    "删除订单": "delete_order",
+    "删掉订单": "delete_order",
+    "移除订单": "delete_order",
     "smalltalk": "chitchat",
     "闲聊": "chitchat",
 }
@@ -81,10 +101,14 @@ _INTENT_ALIASES = {
 INTENT_TOOL_MAP = {
     "recommend_product": "search_products",
     "search_product": "search_products",
-    "compare_product": "compare",
+    "compare_product": "compare_products",
     "add_cart": "add_cart",
     "product_detail": "get_product",
     "faq": "faq",
+    "query_orders": "query_orders",
+    "track_order": "track_order",
+    "cancel_order": "cancel_order",
+    "delete_order": "delete_order",
 }
 
 _SLOT_LABELS = {
@@ -96,6 +120,7 @@ _SLOT_LABELS = {
     "productId": "具体商品",
     "productIds": "要对比的商品",
     "quantity": "数量",
+    "orderId": "订单号",
 }
 
 
@@ -187,6 +212,11 @@ def make_nodes(deps: AgentDeps) -> dict[str, Callable[[Mapping[str, Any]], dict[
         needs_clarify = bool(parsed.get("needs_clarify")) or (
             name in ("recommend_product", "search_product") and confidence < 0.5
         )
+        # 订单操作硬规则：查详情/取消/删除必须有单号，缺了必追问（取消/删除是写操作）
+        if name in ("track_order", "cancel_order", "delete_order") and not entities.get("orderId"):
+            needs_clarify = True
+            if "orderId" not in missing:
+                missing = missing + ["orderId"]
         if needs_clarify and not missing:
             # 仅当 LLM 没说缺什么、且连品类线索都没有时，才兜底追问品类/用途
             if not missing_raw and not entities.get("keyword"):
@@ -355,13 +385,51 @@ def _normalize_intent(raw: str) -> str:
 def _heuristic_intent(text: str) -> dict[str, Any]:
     """LLM 输出不可用时的规则兜底（只用于续流，不追求高准确率）。"""
     lowered = text.lower()
+    # 订单类意图优先（“订单详情”也会命中“详情”，须在商品详情之前判）
+    id_match = re.search(r"\b(\d{10,20})\b", text)
+    order_entities: dict[str, Any] = {"orderId": id_match.group(1)} if id_match else {}
+    delete_hit = any(k in text for k in ("删除订单", "删掉订单", "移除订单", "delete order")) or (
+        ("删除" in text or "删掉" in text or "移除" in text) and "订单" in text
+    )
+    if delete_hit or "delete_order" in lowered:
+        has_id = bool(order_entities)
+        return {
+            "name": "delete_order",
+            "confidence": 0.5,
+            "entities": order_entities,
+            "needs_clarify": not has_id,
+            "missing_slots": [] if has_id else ["orderId"],
+        }
+    cancel_hit = any(k in text for k in ("取消订单", "退掉订单", "不要这单", "cancel order")) or (
+        ("取消" in text or "退掉" in text) and "订单" in text
+    )
+    if cancel_hit or "cancel_order" in lowered:
+        has_id = bool(order_entities)
+        return {
+            "name": "cancel_order",
+            "confidence": 0.5,
+            "entities": order_entities,
+            "needs_clarify": not has_id,
+            "missing_slots": [] if has_id else ["orderId"],
+        }
+    if any(k in text for k in ("物流", "到哪了", "发货了吗", "订单详情", "订单状态", "订单进度", "track")):
+        has_id = bool(order_entities)
+        return {
+            "name": "track_order",
+            "confidence": 0.5,
+            "entities": order_entities,
+            "needs_clarify": not has_id,
+            "missing_slots": [] if has_id else ["orderId"],
+        }
+    if any(k in text for k in ("我的订单", "查订单", "看订单", "订单列表", "有哪些订单", "有几单", "买过什么", "历史订单")) or "query_orders" in lowered:
+        return {"name": "query_orders", "confidence": 0.5, "entities": {}, "needs_clarify": False}
     if any(k in text for k in ("加入购物车", "加购物车", "买它", "add to cart")) or "add_cart" in lowered:
         return {"name": "add_cart", "confidence": 0.5, "entities": {}, "needs_clarify": False}
     if any(k in text for k in ("对比", "比较", "compare")):
         return {"name": "compare_product", "confidence": 0.5, "entities": {}, "needs_clarify": False}
     if any(k in text for k in ("详情", "参数", "怎么样", "好不好用")):
         return {"name": "product_detail", "confidence": 0.5, "entities": {}, "needs_clarify": False}
-    if any(k in text for k in ("退货", "退款", "发票", "物流", "发货", "售后", "客服")):
+    if any(k in text for k in ("退货", "退款", "发票", "售后", "客服", "保修")):
         return {"name": "faq", "confidence": 0.6, "entities": {}, "needs_clarify": False}
     if any(k in text for k in ("推荐", "买", "购", "找", "搜", "想要", "有什么")):
         entities: dict[str, Any] = {"keyword": text[:40]}
@@ -424,7 +492,26 @@ def _build_tool_args(intent_name: str, state: Mapping[str, Any]) -> dict[str, An
         }
     if tool_name == "get_product":
         return {"product_id": pick("productId", "product_id")}
+    if tool_name == "query_orders":
+        order_args: dict[str, Any] = {}
+        status = pick("orderStatus", "status")
+        if isinstance(status, str) and status:
+            order_args["status"] = status.upper()
+        return order_args
+    if tool_name == "track_order":
+        return {"order_id": _normalize_order_id(pick("orderId", "order_id"))}
+    if tool_name == "cancel_order":
+        return {"order_id": _normalize_order_id(pick("orderId", "order_id"))}
+    if tool_name == "delete_order":
+        return {"order_id": _normalize_order_id(pick("orderId", "order_id"))}
     return {"question": text[:200]}
+
+
+def _normalize_order_id(value: Any) -> Any:
+    """LLM 常把 o_ 前缀当噪音丢掉；裸 12 位十六进制补回 o_（订单 id 格式）。"""
+    if isinstance(value, str) and re.fullmatch(r"[0-9a-f]{12}", value.strip()):
+        return "o_" + value.strip()
+    return value
 
 
 def _invoke_with_retry(deps: AgentDeps, name: str, arguments: Mapping[str, Any]) -> ToolResult:
