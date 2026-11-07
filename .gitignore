@@ -71,3 +71,8 @@ agent-service/.venv/
 # golden 评测产物
 agent-service/tests/golden/report.json
 agent-service/tests/golden/report.md
+
+# 模型转换中间产物（tools/export_depth_model.py）
+*.onnx
+*.onnx.data
+calibration_image_sample_data*.npy
