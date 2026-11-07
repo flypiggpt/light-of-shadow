@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS `sg_session` (
   `locale` VARCHAR(16) NOT NULL DEFAULT 'zh-CN' COMMENT '语言',
   `status` VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT 'ACTIVE/ENDED',
   `welcome_message` VARCHAR(512) NOT NULL DEFAULT '' COMMENT '欢迎语',
+  `summary` TEXT COMMENT '会话摘要',
+  `last_intent` TEXT COMMENT '最近意图 JSON',
+  `recommendations_json` TEXT COMMENT '最近推荐 JSON',
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
@@ -26,3 +29,14 @@ CREATE TABLE IF NOT EXISTS `sg_message` (
   PRIMARY KEY (`id`),
   KEY `idx_sg_message_session` (`session_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='导购消息日志';
+
+CREATE TABLE IF NOT EXISTS `sg_feedback` (
+  `id` VARCHAR(64) NOT NULL COMMENT '反馈ID',
+  `session_id` VARCHAR(64) NOT NULL COMMENT '会话ID',
+  `message_id` VARCHAR(64) DEFAULT NULL COMMENT '关联消息ID',
+  `rating` INT NOT NULL COMMENT '评分 1-5',
+  `feedback` VARCHAR(500) DEFAULT NULL COMMENT '文本反馈',
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  KEY `idx_sg_feedback_session` (`session_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='导购反馈';

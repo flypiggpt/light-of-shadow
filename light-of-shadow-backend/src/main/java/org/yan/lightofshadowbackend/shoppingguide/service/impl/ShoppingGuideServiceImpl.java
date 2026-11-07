@@ -29,6 +29,7 @@ import org.yan.lightofshadowbackend.shop.mapper.ProductMapper;
 import org.yan.lightofshadowbackend.shoppingguide.client.AgentGatewayClient;
 import org.yan.lightofshadowbackend.shoppingguide.entity.MessageEntity;
 import org.yan.lightofshadowbackend.shoppingguide.entity.SessionEntity;
+import org.yan.lightofshadowbackend.shoppingguide.entity.ShoppingGuideFeedbackEntity;
 import org.yan.lightofshadowbackend.shoppingguide.mapper.ShoppingGuideMapper;
 import org.yan.lightofshadowbackend.shop.service.ShopAuthSupport;
 import org.yan.lightofshadowbackend.shoppingguide.dto.ShoppingGuideCompareRequest;
@@ -99,6 +100,9 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
         entity.setLocale(session.locale);
         entity.setStatus(session.status);
         entity.setWelcomeMessage(session.welcomeMessage);
+        entity.setSummary("");
+        entity.setLastIntent("");
+        entity.setRecommendationsJson("[]");
         entity.setCreatedAt(session.createdAt);
         entity.setUpdatedAt(session.updatedAt);
         shoppingGuideMapper.insertSession(entity);
@@ -190,6 +194,7 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
         result.put("intent", session.lastIntent.toMap());
         result.put("recommendations", toRecommendationMaps(recommendations, 1, recommendations.size()));
         result.put("actions", actions);
+        persistSessionExtra(session);
         return result;
     }
 
@@ -222,6 +227,7 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
         session.lastUserMessage = text;
         session.updatedAt = now;
         refreshSessionFromAgent(session, data);
+        persistSessionExtra(session);
         return data;
     }
 
@@ -463,14 +469,25 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
                 throw new ApiException(ErrorCode.NOT_FOUND, "messageId不存在");
             }
         }
+        String feedbackId = generateId("fb_");
+        Instant now = Instant.now();
         session.feedbacks.add(new FeedbackRecord(
-                generateId("fb_"),
+                feedbackId,
                 request.sessionId(),
                 request.messageId(),
                 request.rating(),
                 safeTrim(request.feedback(), ""),
-                Instant.now()));
-        session.updatedAt = Instant.now();
+                now));
+        session.updatedAt = now;
+        // 落库：重启后反馈不丢（此前只存内存）
+        ShoppingGuideFeedbackEntity feedbackEntity = new ShoppingGuideFeedbackEntity();
+        feedbackEntity.setId(feedbackId);
+        feedbackEntity.setSessionId(request.sessionId());
+        feedbackEntity.setMessageId(request.messageId());
+        feedbackEntity.setRating(request.rating());
+        feedbackEntity.setFeedback(safeTrim(request.feedback(), ""));
+        feedbackEntity.setCreatedAt(now);
+        shoppingGuideMapper.insertFeedback(feedbackEntity);
 
         return Map.of("saved", true);
     }
@@ -501,7 +518,11 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
             for (MessageEntity m : shoppingGuideMapper.selectMessagesBySession(sessionId)) {
                 session.messages.add(new MessageRecord(
                         m.getId(), m.getSessionId(), m.getRole(), m.getContentType(), m.getContent(), m.getCreatedAt()));
+                if ("user".equals(m.getRole()) && m.getContent() != null) {
+                    session.lastUserMessage = m.getContent();
+                }
             }
+            restoreSessionExtra(session, entity);
             sessions.put(sessionId, session);
         }
         if (!session.userId.equals(userId)) {
@@ -511,6 +532,56 @@ public class ShoppingGuideServiceImpl implements ShoppingGuideService {
             throw new ApiException(ErrorCode.SESSION_ENDED, "会话已结束");
         }
         return session;
+    }
+
+    /** 会话扩展状态（summary/意图/推荐）落库，重启后由 restoreSessionExtra 恢复。 */
+    private void persistSessionExtra(SessionState session) {
+        try {
+            String intentJson = objectMapper.writeValueAsString(session.lastIntent.toMap());
+            String recommendationsJson = objectMapper.writeValueAsString(
+                    toRecommendationMaps(session.recommendations, 0, session.recommendations.size()));
+            shoppingGuideMapper.updateSessionExtra(session.sessionId,
+                    session.summary == null ? "" : session.summary,
+                    intentJson, recommendationsJson, Instant.now());
+        } catch (Exception e) {
+            log.warn("session_extra_persist_failed session={}", session.sessionId, e);
+        }
+    }
+
+    /** 从 DB 恢复 summary/lastIntent/recommendations（消息已在前面恢复）。 */
+    @SuppressWarnings("unchecked")
+    private void restoreSessionExtra(SessionState session, SessionEntity entity) {
+        session.summary = entity.getSummary() == null ? "" : entity.getSummary();
+        try {
+            if (entity.getLastIntent() != null && !entity.getLastIntent().isBlank()) {
+                Map<String, Object> intent = objectMapper.readValue(entity.getLastIntent(), Map.class);
+                session.lastIntent = new ParsedIntent(
+                        String.valueOf(intent.getOrDefault("name", "other")),
+                        intent.get("confidence") instanceof Number n ? n.doubleValue() : 0.5,
+                        intent.get("entities") instanceof Map<?, ?> e ? (Map<String, Object>) e : Map.of());
+            }
+        } catch (Exception e) {
+            log.warn("session_intent_restore_failed session={}", session.sessionId, e);
+        }
+        try {
+            if (entity.getRecommendationsJson() != null && !entity.getRecommendationsJson().isBlank()) {
+                List<Map<String, Object>> recs = objectMapper.readValue(entity.getRecommendationsJson(), List.class);
+                session.recommendations.clear();
+                for (Map<String, Object> rec : recs) {
+                    session.recommendations.add(new Recommendation(
+                            String.valueOf(rec.get("productId")),
+                            String.valueOf(rec.getOrDefault("name", "")),
+                            String.valueOf(rec.getOrDefault("description", "")),
+                            rec.get("priceCent") instanceof Number n ? n.intValue() : 0,
+                            rec.get("stock") instanceof Number n ? n.intValue() : 0,
+                            String.valueOf(rec.getOrDefault("coverUrl", "")),
+                            rec.get("score") instanceof Number n ? n.doubleValue() : 0.9,
+                            String.valueOf(rec.getOrDefault("reason", ""))));
+                }
+            }
+        } catch (Exception e) {
+            log.warn("session_recommendations_restore_failed session={}", session.sessionId, e);
+        }
     }
 
     private void persistMessage(MessageRecord record) {
