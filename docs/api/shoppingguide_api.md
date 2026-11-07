@@ -618,12 +618,12 @@ Authorization: Bearer <accessToken>
 
 - `createShoppingGuideSession()`
 - `sendShoppingGuideMessage(sessionId, message, clientContext)`
+- `closeShoppingGuideSession(sessionId)`（「新对话」流程，尽力而为关闭旧会话）
 
 建议后续按迭代接入：
 
 - `getShoppingGuideSession(sessionId)`
 - `getShoppingGuideMessages(sessionId, page, size)`
-- `closeShoppingGuideSession(sessionId)`
 - `getShoppingGuideRecommendations(sessionId, page, size)`
 - `compareShoppingGuideProducts(sessionId, productIds)`
 - `submitShoppingGuideFeedback(sessionId, messageId, rating, feedback)`

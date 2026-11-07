@@ -532,10 +532,10 @@ fun ShopScreen(
         }
     }
 
-    suspend fun ensureGuideSessionId(): String? {
-        if (!guideSessionId.isNullOrBlank()) return guideSessionId
-        // 先尝试恢复最近会话（含历史消息），失败再新建
-        if (restoreLatestGuideSession()) return guideSessionId
+    suspend fun ensureGuideSessionId(forceNew: Boolean = false): String? {
+        if (!forceNew && !guideSessionId.isNullOrBlank()) return guideSessionId
+        // 先尝试恢复最近会话（含历史消息），失败再新建；forceNew 跳过恢复直接新建
+        if (!forceNew && restoreLatestGuideSession()) return guideSessionId
         return try {
             val resp = withContext(Dispatchers.IO) {
                 ApiClient.createShoppingGuideSession()
@@ -606,6 +606,37 @@ fun ShopScreen(
                 guideActions = parseGuideActions(resp.data)
             } catch (e: Exception) {
                 showMessage("导购请求失败：${e.message ?: "未知错误"}")
+            } finally {
+                guideLoading = false
+            }
+        }
+    }
+
+    fun startNewGuideChat() {
+        if (guideLoading) return
+        scope.launch {
+            guideLoading = true
+            try {
+                // 1. 尽力关闭旧会话（失败不影响新建）
+                guideSessionId?.let { oldSid ->
+                    try {
+                        withContext(Dispatchers.IO) {
+                            ApiClient.closeShoppingGuideSession(oldSid)
+                        }
+                    } catch (_: Exception) {
+                    }
+                }
+                // 2. 清空本地对话状态
+                guideSessionId = null
+                guideMessages = emptyList()
+                guideRecommendations = emptyList()
+                guideActions = emptyList()
+                guideInput = ""
+                // 3. 直接新建（跳过“恢复最近”，避免把刚关的旧会话又拉回来）
+                val sid = ensureGuideSessionId(forceNew = true)
+                if (sid != null) {
+                    showMessage("已开始新对话")
+                }
             } finally {
                 guideLoading = false
             }
@@ -847,7 +878,8 @@ fun ShopScreen(
                         messages = guideMessages,
                         recommendations = guideRecommendations,
                         actions = guideActions,
-                        onActionClick = { onGuideAction(it) }
+                        onActionClick = { onGuideAction(it) },
+                        onNewChat = { startNewGuideChat() }
                     )
                 }
                 }
@@ -1071,7 +1103,8 @@ private fun ShoppingGuidePanel(
     messages: List<GuideMessage>,
     recommendations: List<GuideRecommendation>,
     actions: List<GuideAction>,
-    onActionClick: (GuideAction) -> Unit
+    onActionClick: (GuideAction) -> Unit,
+    onNewChat: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -1079,11 +1112,23 @@ private fun ShoppingGuidePanel(
     ) {
         GoldCard {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = stringResource(R.string.shop_guide_title),
-                    color = DarkGoldTextPrimary,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.shop_guide_title),
+                        color = DarkGoldTextPrimary,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = onNewChat, enabled = !loading) {
+                        Text(
+                            text = stringResource(R.string.shop_guide_new_chat),
+                            color = DarkGoldHighlight,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
                 Text(
                     text = stringResource(R.string.shop_guide_hint),
                     color = DarkGoldTextSecondary,
