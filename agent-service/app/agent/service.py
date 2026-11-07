@@ -5,6 +5,7 @@ S1 记忆偏好：每轮注入用户画像（预算/偏好/购买历史）到意
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -39,38 +40,54 @@ class SessionRecord:
 
 
 class ToolExecutorAdapter:
-    """把工具 dict 适配成 ToolExecutor 协议。"""
+    """把工具 dict 适配成 ToolExecutor 协议；记录工具成功率/延迟指标。"""
 
-    def __init__(self, tools: dict[str, Any], auth_token: str = "") -> None:
+    def __init__(self, tools: dict[str, Any], metrics: Any = None) -> None:
         self._tools = tools
-        self._auth_token = auth_token
+        self._metrics = metrics
 
-    def invoke(self, name: str, arguments: dict[str, Any], *, timeout: float | None = None) -> Any:
+    def invoke(self, name: str, arguments: dict[str, Any], *, timeout: float | None = None,
+               user_token: str | None = None) -> Any:
         tool = self._tools.get(name)
         if tool is None:
             raise ValueError(f"unknown tool: {name}")
         # 工具是 async execute，这里同步调用
         import asyncio
+        import time
         from app.tools.base import ToolContext
-        ctx = ToolContext(user_token=self._auth_token or None)
+        ctx = ToolContext(user_token=user_token or None)
         kwargs = dict(arguments)
         coro = tool.execute(ctx, **kwargs) if callable(getattr(tool, "execute", None)) else tool(**kwargs)
-        if asyncio.iscoroutine(coro):
-            return _run_async(coro, timeout=timeout or 10)
-        return coro
+        start = time.perf_counter()
+        try:
+            if asyncio.iscoroutine(coro):
+                result = _run_async(coro, timeout=timeout or 10)
+            else:
+                result = coro
+        except Exception:
+            if self._metrics is not None:
+                self._metrics.observe_tool(name, False, time.perf_counter() - start)
+            raise
+        if self._metrics is not None:
+            ok = bool(getattr(result, "ok", True))
+            self._metrics.observe_tool(name, ok, time.perf_counter() - start)
+        return result
 
 
 class LLMAdapter:
     """把 DeepSeekClient 适配成 LLMClient 协议（同步 chat 返回 str）。
 
     每次调用新建客户端，避免 httpx.AsyncClient 绑定旧事件循环。
+    顺带把 token 用量/成本写入指标。
     """
 
-    def __init__(self, base_url: str, api_key: str, model: str, *, temperature: float = 0.7) -> None:
+    def __init__(self, base_url: str, api_key: str, model: str, *,
+                 temperature: float = 0.7, metrics: Any = None) -> None:
         self._base_url = base_url
         self._api_key = api_key
         self._model = model
         self._temperature = temperature
+        self._metrics = metrics
 
     def chat(self, messages: Any, *, timeout: float | None = None) -> str:
         async def _call():
@@ -88,9 +105,24 @@ class LLMAdapter:
         except Exception as exc:
             logger.warning("LLMAdapter.chat 失败", error=repr(exc))
             return "抱歉，我这边暂时出了点小状况，请稍后再试～"
+        self._record_usage(result)
         if hasattr(result, "content"):
             return str(result.content)
         return str(result)
+
+    def _record_usage(self, result: Any) -> None:
+        if self._metrics is None:
+            return
+        usage = getattr(result, "usage", None) or {}
+        prompt_tokens = int(usage.get("prompt_tokens") or 0)
+        completion_tokens = int(usage.get("completion_tokens") or 0)
+        try:
+            from app.obs.langfuse import estimate_cost
+
+            cost = estimate_cost(self._model, prompt_tokens, completion_tokens)
+        except Exception:  # noqa: BLE001 —— 成本估算失败不影响主流程
+            cost = 0.0
+        self._metrics.observe_llm(self._model, prompt_tokens, completion_tokens, cost)
 
 
 class AgentOrchestrator:
@@ -103,6 +135,7 @@ class AgentOrchestrator:
         *,
         profile_store: ProfileStore | None = None,
         java_client: Any = None,
+        tracer: Any = None,
     ) -> None:
         self._deps = deps
         self._graph = build_agent_graph(deps, checkpointer=checkpointer)
@@ -110,7 +143,7 @@ class AgentOrchestrator:
         self._messages: dict[str, list[dict[str, Any]]] = {}
         self._profile = profile_store or ProfileStore()
         self._java = java_client
-        self._auth_token = ""
+        self._tracer = tracer
 
     def create_session(self, user_id: str, entry: str = "shop",
                        source: str = "app", locale: str = "zh-CN") -> dict[str, Any]:
@@ -135,14 +168,9 @@ class AgentOrchestrator:
         rec = self._sessions.get(session_id)
         return self._session_dict(rec) if rec else None
 
-    def set_auth_token(self, token: str) -> None:
-        """设置/更新调用 Java 工具的用户 token（请求级透传）。"""
-        self._auth_token = token or ""
-        if hasattr(self._deps.tools, "_auth_token"):
-            self._deps.tools._auth_token = token
-
     def send_message(self, session_id: str, user_id: str, text: str,
-                     request_id: str = "", client_context: Mapping[str, Any] | None = None) -> dict[str, Any]:
+                     request_id: str = "", client_context: Mapping[str, Any] | None = None,
+                     user_token: str = "") -> dict[str, Any]:
         rec = self._sessions.get(session_id)
         if rec is None:
             # 网关模式：sessionId 由 Java 生成落库，Agent 按需建线程（LangGraph thread_id）
@@ -152,18 +180,27 @@ class AgentOrchestrator:
         if rec.status == "ENDED":
             raise ValueError("session_ended")
 
-        profile = self._profile.load(user_id)
-        self._sync_purchase_history(user_id, profile)
+        profile = self._sync_purchase_history(user_id, self._profile.load(user_id), user_token)
 
-        result = invoke_turn(
-            self._graph,
-            session_id=session_id,
-            user_text=text,
-            user_id=user_id,
-            request_id=request_id,
-            client_context=client_context,
-            user_profile=profile.to_dict(),
+        span_ctx = (
+            self._tracer.trace("shopping_guide", session_id=session_id, user_id=user_id)
+            if self._tracer is not None
+            else contextlib.nullcontext(None)
         )
+        with span_ctx as span:
+            result = invoke_turn(
+                self._graph,
+                session_id=session_id,
+                user_text=text,
+                user_id=user_id,
+                request_id=request_id,
+                client_context=client_context,
+                user_profile=profile.to_dict(),
+                user_token=user_token,
+            )
+            if span is not None:
+                span.set_input(text)
+                span.set_output(result.get("reply"))
 
         # 轮后学习：预算/偏好/品类记入画像（跨会话生效）
         turn_intent = result.get("intent") or {}
@@ -192,16 +229,6 @@ class AgentOrchestrator:
             "degraded": bool(result.get("degraded")),
         }
 
-    def list_messages(self, session_id: str, page: int = 1, size: int = 50) -> dict[str, Any]:
-        msgs = self._messages.get(session_id, [])
-        start = (page - 1) * size
-        return {
-            "page": page,
-            "size": size,
-            "total": len(msgs),
-            "items": msgs[start:start + size],
-        }
-
     def close_session(self, session_id: str) -> dict[str, Any]:
         rec = self._sessions.get(session_id)
         if rec is None:
@@ -218,21 +245,25 @@ class AgentOrchestrator:
         """读取用户画像（调试/演示用）。"""
         return self._profile.load(user_id).to_dict()
 
-    def _sync_purchase_history(self, user_id: str, profile: UserProfile) -> None:
-        """拉取最近订单入画像（尽力而为，24h 缓存；失败不影响对话）。"""
+    def _sync_purchase_history(self, user_id: str, profile: UserProfile, user_token: str = "") -> UserProfile:
+        """拉取最近订单入画像（尽力而为，24h 缓存；失败不影响对话）。
+
+        同步成功返回**最新**画像（含刚拉的购买历史），保证本轮就注入。
+        """
         if self._java is None or not self._profile.orders_stale(profile):
-            return
+            return profile
         try:
-            orders = _run_async(self._fetch_recent_orders(), timeout=5.0)
+            orders = _run_async(self._fetch_recent_orders(user_token), timeout=5.0)
         except Exception as exc:  # noqa: BLE001 —— 购买历史同步失败不阻断对话
             logger.warning("purchase_sync_failed", user_id=user_id, error=repr(exc))
-            return
+            return profile
         if orders:
-            self._profile.record_orders(user_id, orders)
+            return self._profile.record_orders(user_id, orders)
+        return profile
 
-    async def _fetch_recent_orders(self) -> list[dict[str, Any]]:
+    async def _fetch_recent_orders(self, user_token: str = "") -> list[dict[str, Any]]:
         """取最近 2 笔订单 + 条目名（先列表后详情，条目名截断）。"""
-        token = self._auth_token or None
+        token = user_token or None
         page = await self._java.list_orders(page=1, size=2, user_token=token)
         summaries: list[dict[str, Any]] = []
         for order in (page or {}).get("items") or []:

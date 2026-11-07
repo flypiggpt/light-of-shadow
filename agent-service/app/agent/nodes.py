@@ -266,10 +266,11 @@ def make_nodes(deps: AgentDeps) -> dict[str, Callable[[Mapping[str, Any]], dict[
         executed: list[dict[str, Any]] = []
         any_ok = False
         next_calls: list[dict[str, Any]] = []
+        user_token = state.get("user_token") or None
         for call in calls:
             name = str(call.get("name") or "")
             arguments = dict(call.get("arguments") or {})
-            result = _invoke_with_retry(deps, name, arguments)
+            result = _invoke_with_retry(deps, name, arguments, user_token)
             executed.append(
                 {
                     "name": name,
@@ -514,15 +515,15 @@ def _normalize_order_id(value: Any) -> Any:
     return value
 
 
-def _invoke_with_retry(deps: AgentDeps, name: str, arguments: Mapping[str, Any]) -> ToolResult:
+def _invoke_with_retry(deps: AgentDeps, name: str, arguments: Mapping[str, Any], user_token: str | None = None) -> ToolResult:
     """工具调用：失败重试一次（SPEC）。"""
     try:
-        return deps.tools.invoke(name, arguments, timeout=deps.tool_timeout)
+        return deps.tools.invoke(name, arguments, timeout=deps.tool_timeout, user_token=user_token)
     except Exception as exc:  # noqa: BLE001 —— 第一次失败转成结果对象再重试
         logger.warning("工具调用异常（第 1 次）tool=%s", name, exc_info=True)
         first_error = str(exc)
     try:
-        return deps.tools.invoke(name, arguments, timeout=deps.tool_timeout)
+        return deps.tools.invoke(name, arguments, timeout=deps.tool_timeout, user_token=user_token)
     except Exception as exc:  # noqa: BLE001
         logger.warning("工具调用异常（重试后仍失败）tool=%s", name, exc_info=True)
         return ToolResult(ok=False, error=f"{first_error}; retry: {exc}")
