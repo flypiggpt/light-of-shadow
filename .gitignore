@@ -67,3 +67,7 @@ doc-fetch-resources/
 __pycache__/
 *.pyc
 agent-service/.venv/
+
+# golden 评测产物
+agent-service/tests/golden/report.json
+agent-service/tests/golden/report.md

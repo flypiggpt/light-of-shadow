@@ -236,7 +236,7 @@
       "query": "iPhone 和小米手机哪个更好",
       "expected": {
         "tool": {
-          "name": "compare"
+          "name": "compare_products"
         }
       }
     },
@@ -246,7 +246,7 @@
       "query": "把无线耳机和智能手表对比一下",
       "expected": {
         "tool": {
-          "name": "compare"
+          "name": "compare_products"
         }
       }
     },
@@ -298,7 +298,7 @@
         "tool": {
           "name": "get_product",
           "args_contains": {
-            "sku": "SKU-1001"
+            "product_id": "SKU-1001"
           }
         }
       }

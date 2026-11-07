@@ -66,10 +66,11 @@ class LLMAdapter:
     每次调用新建客户端，避免 httpx.AsyncClient 绑定旧事件循环。
     """
 
-    def __init__(self, base_url: str, api_key: str, model: str) -> None:
+    def __init__(self, base_url: str, api_key: str, model: str, *, temperature: float = 0.7) -> None:
         self._base_url = base_url
         self._api_key = api_key
         self._model = model
+        self._temperature = temperature
 
     def chat(self, messages: Any, *, timeout: float | None = None) -> str:
         async def _call():
@@ -78,7 +79,7 @@ class LLMAdapter:
                 base_url=self._base_url, api_key=self._api_key, model=self._model
             )
             try:
-                return await client.chat(list(messages))
+                return await client.chat(list(messages), temperature=self._temperature)
             finally:
                 await client.aclose()
 

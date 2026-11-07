@@ -1,0 +1,58 @@
+name: agent-quality
+
+# Agent 质量门禁：单测 + 离线检索评测必跑；LLM 真路由评测对照基线，跌破即红。
+# 需要在仓库 Settings → Secrets 配置 AGENT_LLM_API_KEY（LLM 评测用）。
+
+on:
+  push:
+    branches: [main]
+    paths: ["agent-service/**", ".github/workflows/agent-quality.yml"]
+  pull_request:
+    paths: ["agent-service/**", ".github/workflows/agent-quality.yml"]
+
+jobs:
+  unit-and-retrieval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: agent-service/pyproject.toml
+      - name: 安装依赖
+        working-directory: agent-service
+        run: pip install -e ".[dev]"
+      - name: 单测 + 离线检索评测（LLM 用例无 key 自动跳过）
+        working-directory: agent-service
+        run: python -m pytest tests/ -q
+
+  llm-eval-gate:
+    runs-on: ubuntu-latest
+    # fork PR 拿不到 secrets，只在主仓 push / 同仓 PR 上把质量门禁跑全
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: agent-service/pyproject.toml
+      - name: 安装依赖
+        working-directory: agent-service
+        run: pip install -e ".[dev]"
+      - name: Golden 评测（真意图/路由/回答，对照基线门禁）
+        working-directory: agent-service
+        env:
+          AGENT_LLM_API_KEY: ${{ secrets.AGENT_LLM_API_KEY }}
+          AGENT_LLM_BASE_URL: ${{ vars.AGENT_LLM_BASE_URL || 'https://api.deepseek.com/v1' }}
+          AGENT_LLM_MODEL: ${{ vars.AGENT_LLM_MODEL || 'deepseek-chat' }}
+        run: python tests/golden/run_eval.py --require-llm
+      - name: 上传评测报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-eval-report
+          path: |
+            agent-service/tests/golden/report.json
+            agent-service/tests/golden/report.md
