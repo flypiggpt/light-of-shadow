@@ -1,0 +1,6 @@
+{
+  "retrieval_mrr": 0.85,
+  "retrieval_hit_rate": 0.95,
+  "tool_call_accuracy": 0.85,
+  "answer_correctness": 0.85
+}
