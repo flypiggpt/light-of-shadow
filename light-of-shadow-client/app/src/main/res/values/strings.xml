@@ -69,6 +69,8 @@
     <string name="shop_guide_title">智能导购问答</string>
     <string name="shop_guide_hint">告诉我预算、用途或偏好，我会给你推荐更合适的商品。</string>
     <string name="shop_guide_new_chat">新对话</string>
+    <string name="shop_qty_decrease">减少数量</string>
+    <string name="shop_qty_increase">增加数量</string>
     <string name="shop_guide_input_hint">例如：预算 300 以内，轻便一点</string>
     <string name="shop_guide_send">发送</string>
     <string name="shop_guide_thinking">导购助手正在思考...</string>
