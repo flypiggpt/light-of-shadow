@@ -61,6 +61,12 @@ import com.yan.client.ui.theme.NeumorphismTextPrimary
 import com.yan.client.ui.theme.NeumorphismTextSecondary
 import com.yan.client.vision.ObstacleDetection
 import com.yan.client.vision.ObstacleDetector
+import com.yan.client.vision.perception.AlertStateMachine
+import com.yan.client.vision.perception.DepthEstimator
+import com.yan.client.vision.perception.PerceptionPipeline
+import com.yan.client.vision.perception.FBox
+import com.yan.client.vision.perception.SemanticFrameCache
+import com.yan.client.vision.perception.TrackSmoother
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 
@@ -78,6 +84,20 @@ fun GuideScreen(
         }
     }
     val detector = remember(context) { ObstacleDetector(context) }
+    val depthEstimator = remember(context) { DepthEstimator.create(context) }
+    val pipeline = remember(context, depthEstimator) {
+        PerceptionPipeline(
+            depthSource = depthEstimator,
+            semanticDetector = PerceptionPipeline.SemanticDetector { bmp ->
+                detector.detectBitmap(bmp).map {
+                    SemanticFrameCache.LabeledBox(
+                        FBox(it.boundingBox.left, it.boundingBox.top, it.boundingBox.right, it.boundingBox.bottom),
+                        it.displayLabel, it.score)
+                }
+            })
+    }
+    val smoother = remember { TrackSmoother() }
+    val alertMachine = remember { AlertStateMachine() }
     val ttsAlertManager = remember(context) { TtsAlertManager(context) }
     DisposableEffect(ttsAlertManager) {
         ttsAlertManager.setSpeechRate(AppSettings.speechRate)
@@ -118,21 +138,27 @@ fun GuideScreen(
         }
     }
 
-    LaunchedEffect(latestDetections) {
-        val primary = latestDetections.firstOrNull() ?: return@LaunchedEffect
-        if (!primary.isObstacle) return@LaunchedEffect
-
-        // 语音播报障碍名（设置可关）
-        if (AppSettings.ttsEnabled) {
-            val speechText = primary.alertText.ifBlank { "前方有${primary.displayLabel}" }
-            ttsAlertManager.speakIfAllowed(
-                key = "obstacle",
-                text = speechText,
-                cooldownMs = 3000L,
-                globalCooldownMs = 1500L
-            )
-            ttsAlertManager.getLastSpeakError()?.let { err ->
-                scope.launch { snackbarHostState.showSnackbar(err) }
+    // 感知状态 → 轨迹平滑 → 播报状态机 → TTS（距离优先，YOLO 只负责命名）
+    LaunchedEffect(pipeline) {
+        pipeline.state.collect { st ->
+            val tracks = smoother.update(st.candidates, System.currentTimeMillis())
+            latestDetections = tracks.map { t ->
+                ObstacleDetection(
+                    label = t.label ?: "object",
+                    displayLabel = t.label ?: "障碍物",
+                    score = 1f,
+                    boundingBox = android.graphics.RectF(t.bbox.left, t.bbox.top, t.bbox.right, t.bbox.bottom),
+                    direction = t.direction,
+                    alertText = if (t.distanceM != null) "${t.direction} ${t.distanceM}米 有${t.label ?: "障碍物"}"
+                    else "${t.direction} 有${t.label ?: "障碍物"}",
+                    isObstacle = true)
+            }
+            val events = alertMachine.poll(tracks, System.currentTimeMillis())
+            events.forEach { ev ->
+                if (AppSettings.ttsEnabled) {
+                    ttsAlertManager.speakIfAllowed(ev.key, ev.text, 3000L, 1500L)
+                }
+                latestAlert = ev.text
             }
         }
     }
@@ -153,21 +179,9 @@ fun GuideScreen(
                         .setTargetResolution(Size(320, 320))
                         .build()
 
+                    // 取帧线程只做分发：深度/语义各自线程推理，不再阻塞相机
                     analysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                        try {
-                            val detections = detector.detect(imageProxy)
-                            val primary = detections.firstOrNull()
-                            mainExecutor.execute {
-                                latestDetections = detections
-                                latestAlert = primary?.alertText ?: "暂未识别到明显障碍"
-                            }
-                        } catch (t: Throwable) {
-                            mainExecutor.execute {
-                                latestAlert = "识别失败：${t.message ?: "未知错误"}"
-                            }
-                        } finally {
-                            imageProxy.close()
-                        }
+                        pipeline.onFrame(imageProxy)
                     }
 
                     cameraProvider?.unbindAll()
@@ -194,6 +208,8 @@ fun GuideScreen(
     DisposableEffect(Unit) {
         onDispose {
             cameraExecutor.shutdown()
+            pipeline.close()
+            depthEstimator?.close()
             detector.close()
         }
     }

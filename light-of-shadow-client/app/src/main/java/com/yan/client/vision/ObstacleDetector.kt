@@ -109,7 +109,12 @@ class ObstacleDetector(context: Context) : AutoCloseable {
     fun detect(imageProxy: ImageProxy): List<ObstacleDetection> {
         val bitmap = imageProxy.toBitmap()
         val rotated = bitmap.rotate(imageProxy.imageInfo.rotationDegrees.toFloat())
-        val resized = rotated.scale(INPUT_SIZE, INPUT_SIZE)
+        return detectBitmap(rotated)
+    }
+
+    /** 感知管线用：对已旋转的位图做全帧推理（标注器角色，只出名字与框）。 */
+    fun detectBitmap(bitmap: Bitmap): List<ObstacleDetection> {
+        val resized = bitmap.scale(INPUT_SIZE, INPUT_SIZE)
         val inputBuffer = bitmapToBuffer(resized)
 
         val output = Array(1) { Array(OUTPUT_ROWS) { FloatArray(OUTPUT_COLS) } }
