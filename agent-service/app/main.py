@@ -306,6 +306,9 @@ def create_app() -> FastAPI:
     application.add_exception_handler(Exception, _unhandled_exception_handler)
     application.include_router(health.router)
     application.include_router(shoppingguide.router)
+    from app.api import proactive as proactive_api
+
+    application.include_router(proactive_api.router)
 
     @application.get("/metrics", include_in_schema=False)
     def metrics_endpoint() -> PlainTextResponse:
