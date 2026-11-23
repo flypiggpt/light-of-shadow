@@ -90,6 +90,49 @@ public class AgentGatewayClient {
         }
     }
 
+    /** 生成主动提议并挂起（Agent 侧 interrupt + checkpoint）。 */
+    public Map<String, Object> prepareProposal(String userId, String authHeader,
+            String signalId, String type, Map<String, Object> facts) {
+        String json;
+        try {
+            json = objectMapper.writeValueAsString(Map.of(
+                    "signalId", signalId,
+                    "type", type,
+                    "facts", facts == null ? Map.of() : facts,
+                    "userId", userId == null ? "" : userId));
+        } catch (IOException e) {
+            throw new AgentUnavailableException("请求体序列化失败", e);
+        }
+        return post("/internal/proactive/prepare", userId, authHeader, json);
+    }
+
+    /** 确认主动提议：从 checkpoint 恢复并执行动作。 */
+    public Map<String, Object> confirmProposal(String userId, String authHeader,
+            String signalId, String actionId) {
+        String json;
+        try {
+            json = objectMapper.writeValueAsString(Map.of(
+                    "signalId", signalId,
+                    "actionId", actionId == null ? "" : actionId,
+                    "userId", userId == null ? "" : userId));
+        } catch (IOException e) {
+            throw new AgentUnavailableException("请求体序列化失败", e);
+        }
+        return post("/internal/proactive/confirm", userId, authHeader, json);
+    }
+
+    /** 尽力丢弃主动提议挂起态：不可用仅告警。 */
+    public boolean discardProposal(String signalId) {
+        try {
+            String json = objectMapper.writeValueAsString(Map.of("signalId", signalId));
+            post("/internal/proactive/discard", null, null, json);
+            return true;
+        } catch (Exception e) { // noqa: BLE001 —— 丢弃失败不阻断（Java 侧状态已终结）
+            log.warn("agent_gateway.discard_failed signal={}", signalId, e);
+            return false;
+        }
+    }
+
     // ------------------------------------------------------------------
     // HTTP 内部实现
     // ------------------------------------------------------------------
