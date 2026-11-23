@@ -245,6 +245,48 @@ class AgentOrchestrator:
         """读取用户画像（调试/演示用）。"""
         return self._profile.load(user_id).to_dict()
 
+    # ---- 主动提议（proactive：prepare 挂起 / confirm 恢复 / discard 丢弃）----
+
+    def prepare_signal(self, signal_id: str, signal_type: str, facts: Mapping[str, Any],
+                       user_id: str = "") -> dict[str, Any]:
+        """生成提议并 interrupt 挂起（thread_id = signalId）。"""
+        from .graph import invoke_prepare
+
+        result = invoke_prepare(
+            self._graph,
+            signal_id=signal_id,
+            signal_type=signal_type,
+            facts=facts,
+            user_id=user_id,
+        )
+        logger.info("proactive_prepared", extra={"signal_id": signal_id, "type": signal_type})
+        return result
+
+    def confirm_signal(self, signal_id: str, action_id: str, user_id: str = "",
+                       user_token: str = "") -> dict[str, Any]:
+        """从 checkpoint 恢复挂起态并执行确认动作（幂等）。"""
+        from .graph import invoke_confirm
+
+        result = invoke_confirm(
+            self._graph,
+            signal_id=signal_id,
+            action_id=action_id,
+            user_id=user_id,
+            user_token=user_token,
+        )
+        logger.info("proactive_confirmed", extra={"signal_id": signal_id, "action": action_id})
+        return result
+
+    def discard_signal(self, signal_id: str) -> dict[str, Any]:
+        """丢弃挂起态：删掉 checkpoint 线程，使后续 confirm 报业务错。"""
+        try:
+            saver = getattr(self._graph, "checkpointer", None)
+            if saver is not None and hasattr(saver, "delete_thread"):
+                saver.delete_thread(signal_id)
+        except Exception:  # noqa: BLE001 —— 删除失败按已丢弃处理（confirm 端兜底）
+            logger.warning("proactive_discard_failed", extra={"signal_id": signal_id})
+        return {"signalId": signal_id, "status": "DISCARDED"}
+
     def _sync_purchase_history(self, user_id: str, profile: UserProfile, user_token: str = "") -> UserProfile:
         """拉取最近订单入画像（尽力而为，24h 缓存；失败不影响对话）。
 

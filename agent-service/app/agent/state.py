@@ -76,6 +76,13 @@ class AgentState(TypedDict, total=False):
     recommendations: list[dict[str, Any]]
     actions: list[dict[str, Any]]
 
+    # ---- 主动提议（proactive：prepare 挂起 / confirm 恢复）----
+    signal_id: str
+    signal_type: str
+    facts: dict[str, Any]
+    confirmed_action: str
+    executed: bool
+
     # ---- 运行标记 ----
     degraded: bool
     error: str | None
