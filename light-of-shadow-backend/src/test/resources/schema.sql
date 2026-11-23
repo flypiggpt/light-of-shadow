@@ -121,3 +121,29 @@ CREATE TABLE IF NOT EXISTS sg_message (
   content TEXT NOT NULL,
   created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
 );
+
+CREATE TABLE IF NOT EXISTS proactive_event (
+  id VARCHAR(64) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(64) NOT NULL,
+  type VARCHAR(32) NOT NULL,
+  dedupe_key VARCHAR(128) NOT NULL,
+  ref_id VARCHAR(64) NOT NULL,
+  payload_json TEXT NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+  action_id VARCHAR(32) DEFAULT NULL,
+  session_id VARCHAR(64) DEFAULT NULL,
+  proposed_at TIMESTAMP(3) DEFAULT NULL,
+  resolved_at TIMESTAMP(3) DEFAULT NULL,
+  created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_proactive_dedupe ON proactive_event (dedupe_key);
+CREATE INDEX IF NOT EXISTS idx_proactive_user_status ON proactive_event (user_id, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_proactive_type_status ON proactive_event (type, status, created_at);
+
+CREATE TABLE IF NOT EXISTS proactive_pref (
+  user_id VARCHAR(64) NOT NULL,
+  type VARCHAR(32) NOT NULL,
+  enabled TINYINT NOT NULL DEFAULT 1,
+  updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (user_id, type)
+);
