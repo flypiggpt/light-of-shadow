@@ -28,6 +28,7 @@
 | [db/mysql_schema.sql](db/mysql_schema.sql) | 用户与基础表 |
 | [db/mysql_add_user_role.sql](db/mysql_add_user_role.sql) | 用户角色字段 |
 | [db/mysql_shop_tables.sql](db/mysql_shop_tables.sql) | 商城相关表 |
+| [db/mysql_proactive_event.sql](db/mysql_proactive_event.sql) | 主动提醒事件表 |
 
 ## 规划
 
@@ -35,6 +36,7 @@
 |---|---|
 | [plan.md](plan.md) | 下一阶段计划：技术栈（Java + Python Agent + Redis）与功能对照、里程碑 |
 | [backend-plan.md](backend-plan.md) | 后端收尾计划：4 个洞 + 双服务边界（不含 Spring Cloud） |
+| [proactive-agent-plan.md](proactive-agent-plan.md) | 主动式 Agent 改造：4 类用户侧信号、策略层防骚扰、interrupt 确认流、PR 链 |
 
 ## 协作
 

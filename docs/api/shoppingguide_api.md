@@ -606,6 +606,7 @@ Authorization: Bearer <accessToken>
 - `4002`：会话不存在
 - `4003`：会话已结束
 - `4004`：商品不存在
+- `4005`：提议不存在或已处理
 - `4006`：库存不足
 - `4010`：未登录或 token 无效
 - `5000`：服务端异常
@@ -661,7 +662,150 @@ UI 入口建议：主页 `商店` 卡片 -> `ShopScreen` -> `导购` 页签。
 
 ---
 
-## 12. 备注
+## 12. 主动提醒（Proactive）
+
+Agent 主动开口的能力：系统检测到事件（催付/误操作/购物车闲置/降价）后推送提议，用户确认后执行。设计细节见 `docs/proactive-agent-plan.md`。本章为对外契约；`/internal/proactive/*` 为 Java → Agent 内部接口，不对客户端暴露。
+
+## 12.1 拉取未读提议
+
+- 方法：`GET`
+- 路径：`/api/shoppingguide/proactive/pending`
+- 说明：客户端启动/回到前台时调用，拉取未处理的主动提议（通知栏 + TTS 播报的数据源）
+
+### Query 参数
+- `limit`（可选，默认 10）
+
+### 成功示例
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "items": [
+      {
+        "signalId": "pe_202606010001",
+        "type": "UNPAID_ORDER",
+        "message": "你有一笔牛奶订单还没支付（29 元），25 分钟内不支付会自动关闭，要继续支付吗？",
+        "actions": [
+          { "actionId": "pay", "label": "继续支付" },
+          { "actionId": "cancel_order", "label": "取消订单" }
+        ],
+        "createdAt": "2026-06-01T09:00:00Z",
+        "expiresAt": "2026-06-02T09:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+## 12.2 确认提议
+
+- 方法：`POST`
+- 路径：`/api/shoppingguide/proactive/{signalId}/confirm`
+- 说明：用户点击动作按钮或语音确认后调用；幂等——重复确认返回同一结果。工具动作由 Agent 从 checkpoint 恢复执行，客户端动作（如去购物车、删购物车项）由客户端按 `actionId` 自行执行
+
+### 请求体
+
+```json
+{
+  "actionId": "add_cart"
+}
+```
+
+### 成功示例
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "signalId": "pe_202606010002",
+    "actionId": "add_cart",
+    "reply": "已把 500ml 装牛奶 × 1 加入购物车。",
+    "executed": true
+  }
+}
+```
+
+## 12.3 忽略提议
+
+- 方法：`POST`
+- 路径：`/api/shoppingguide/proactive/{signalId}/dismiss`
+- 说明：忽略该提议并记负反馈（同类信号连续 2 次忽略 → 该类停 30 天）
+
+### 成功示例
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "signalId": "pe_202606010002",
+    "status": "DISMISSED"
+  }
+}
+```
+
+## 12.4 查询提醒开关
+
+- 方法：`GET`
+- 路径：`/api/shoppingguide/proactive/prefs`
+- 说明：读取总开关与分类开关
+
+### 成功示例
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "enabled": true,
+    "types": {
+      "UNPAID_ORDER": true,
+      "DUP_ORDER": true,
+      "CART_IDLE": true,
+      "PRICE_DROP": true
+    }
+  }
+}
+```
+
+## 12.5 修改提醒开关
+
+- 方法：`PUT`
+- 路径：`/api/shoppingguide/proactive/prefs`
+- 说明：改总开关或单类开关；只传要改的字段
+
+### 请求体
+
+```json
+{
+  "enabled": true,
+  "types": {
+    "PRICE_DROP": false
+  }
+}
+```
+
+### 成功示例
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "saved": true
+  }
+}
+```
+
+### 错误码
+- `4005`：提议不存在或已处理（confirm/dismiss 重复过期、signalId 无效）
+
+---
+
+## 13. 备注
 
 - 本文档面向 `shoppingguide` 后端联调
 - 若后续要接入大模型，建议仍然保持 **RESTful + 工具调用** 的架构
