@@ -9,9 +9,11 @@ import java.util.Map;
 import java.util.Locale;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.yan.lightofshadowbackend.common.ErrorCode;
+import org.yan.lightofshadowbackend.common.event.OrderCreatedEvent;
 import org.yan.lightofshadowbackend.exception.ApiException;
 import org.yan.lightofshadowbackend.shop.dto.CheckoutOrderRequest;
 import org.yan.lightofshadowbackend.shop.entity.CartItemEntity;
@@ -36,17 +38,20 @@ public class ShopCommerceServiceImpl implements ShopCommerceService {
     private final ShopOrderMapper shopOrderMapper;
     private final ShopOrderItemMapper shopOrderItemMapper;
     private final UserAddressMapper userAddressMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ShopCommerceServiceImpl(CartItemMapper cartItemMapper,
             ProductMapper productMapper,
             ShopOrderMapper shopOrderMapper,
             ShopOrderItemMapper shopOrderItemMapper,
-            UserAddressMapper userAddressMapper) {
+            UserAddressMapper userAddressMapper,
+            ApplicationEventPublisher eventPublisher) {
         this.cartItemMapper = cartItemMapper;
         this.productMapper = productMapper;
         this.shopOrderMapper = shopOrderMapper;
         this.shopOrderItemMapper = shopOrderItemMapper;
         this.userAddressMapper = userAddressMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -176,6 +181,7 @@ public class ShopCommerceServiceImpl implements ShopCommerceService {
         }
 
         cartItemMapper.deleteByUserId(userId);
+        eventPublisher.publishEvent(new OrderCreatedEvent(userId, orderId));
         return new CheckoutResult(orderId, orderNo, order.getStatus().name(), totalCent, order.getCreatedAt());
     }
 
