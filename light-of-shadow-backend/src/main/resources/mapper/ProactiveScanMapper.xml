@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.yan.lightofshadowbackend.shop.proactive.mapper.ProactiveScanMapper">
+
+  <select id="selectUnpaidCandidates" resultType="org.yan.lightofshadowbackend.shop.proactive.mapper.ProactiveScanMapper$UnpaidRow">
+    SELECT id, user_id AS userId, order_no AS orderNo, total_cent AS totalCent, created_at AS createdAt
+    FROM shop_order
+    WHERE status = 'PENDING_PAYMENT'
+      AND created_at &lt;= #{olderThan}
+      AND created_at &gt;= #{newerThan}
+    ORDER BY created_at ASC
+  </select>
+
+  <select id="selectIdleCartItems" resultType="org.yan.lightofshadowbackend.shop.proactive.mapper.ProactiveScanMapper$IdleCartRow">
+    SELECT id, user_id AS userId, product_id AS productId, quantity, created_at AS createdAt
+    FROM cart_item
+    WHERE created_at &lt;= #{olderThan}
+    ORDER BY created_at ASC
+  </select>
+
+  <select id="selectPurchaseHistory" resultType="org.yan.lightofshadowbackend.shop.proactive.mapper.ProactiveScanMapper$PurchaseRow">
+    SELECT i.product_id AS productId, i.unit_price_cent AS unitPriceCent, o.created_at AS createdAt
+    FROM shop_order_item i
+    JOIN shop_order o ON o.id = i.order_id
+    WHERE o.user_id = #{userId} AND o.status != 'CANCELED'
+    ORDER BY o.created_at DESC
+  </select>
+
+  <select id="selectDistinctBuyerIds" resultType="string">
+    SELECT DISTINCT o.user_id
+    FROM shop_order o
+    WHERE o.status != 'CANCELED'
+  </select>
+
+  <select id="countRecentOrdersWithProduct" resultType="long">
+    SELECT COUNT(DISTINCT o.id)
+    FROM shop_order o
+    JOIN shop_order_item i ON i.order_id = o.id
+    WHERE o.user_id = #{userId}
+      AND i.product_id = #{productId}
+      AND o.id != #{excludeOrderId}
+      AND o.status != 'CANCELED'
+      AND o.created_at &gt;= #{since}
+  </select>
+
+  <select id="selectQuantityStats" resultType="org.yan.lightofshadowbackend.shop.proactive.mapper.ProactiveScanMapper$QuantityStats">
+    SELECT COUNT(*) AS purchaseCount, AVG(i.quantity) AS avgQuantity
+    FROM shop_order_item i
+    JOIN shop_order o ON o.id = i.order_id
+    WHERE o.user_id = #{userId}
+      AND i.product_id = #{productId}
+      AND o.status IN ('PAID', 'SHIPPED', 'COMPLETED')
+  </select>
+
+  <select id="selectPendingPaymentOlderThan" resultType="org.yan.lightofshadowbackend.shop.proactive.mapper.ProactiveScanMapper$PendingRow">
+    SELECT id, user_id AS userId
+    FROM shop_order
+    WHERE status = 'PENDING_PAYMENT' AND created_at &lt;= #{cutoff}
+    ORDER BY created_at ASC
+  </select>
+</mapper>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.yan.lightofshadowbackend.shop.proactive.mapper.ProactivePrefMapper">
+
+  <resultMap id="ProactivePrefResult" type="org.yan.lightofshadowbackend.shop.proactive.entity.ProactivePrefEntity">
+    <id column="user_id" property="userId"/>
+    <id column="type" property="type"/>
+    <result column="enabled" property="enabled"/>
+    <result column="updated_at" property="updatedAt"/>
+  </resultMap>
+
+  <select id="selectByUserIdAndType" resultMap="ProactivePrefResult">
+    SELECT * FROM proactive_pref WHERE user_id = #{userId} AND type = #{type}
+  </select>
+
+  <insert id="upsert" parameterType="org.yan.lightofshadowbackend.shop.proactive.entity.ProactivePrefEntity">
+    INSERT INTO proactive_pref (user_id, type, enabled, updated_at)
+    VALUES (#{userId}, #{type}, #{enabled}, #{updatedAt})
+    ON DUPLICATE KEY UPDATE enabled = #{enabled}, updated_at = #{updatedAt}
+  </insert>
+</mapper>
