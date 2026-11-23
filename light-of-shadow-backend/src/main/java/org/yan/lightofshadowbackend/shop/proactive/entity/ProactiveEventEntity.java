@@ -11,6 +11,7 @@ public class ProactiveEventEntity {
     private String dedupeKey;
     private String refId;
     private String payloadJson;
+    private String proposalJson;
     private String status;
     private String actionId;
     private String sessionId;
@@ -64,6 +65,14 @@ public class ProactiveEventEntity {
 
     public void setPayloadJson(String payloadJson) {
         this.payloadJson = payloadJson;
+    }
+
+    public String getProposalJson() {
+        return proposalJson;
+    }
+
+    public void setProposalJson(String proposalJson) {
+        this.proposalJson = proposalJson;
     }
 
     public String getStatus() {

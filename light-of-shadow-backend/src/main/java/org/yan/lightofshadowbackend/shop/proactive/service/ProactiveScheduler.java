@@ -26,6 +26,7 @@ public class ProactiveScheduler {
     private static final Logger log = LoggerFactory.getLogger(ProactiveScheduler.class);
 
     private final ProactiveSignalScanner scanner;
+    private final ProactiveService proactiveService;
     private final ProactiveScanMapper scanMapper;
     private final ProactiveEventMapper eventMapper;
     private final ShopOrderMapper shopOrderMapper;
@@ -33,12 +34,14 @@ public class ProactiveScheduler {
     private final ProductMapper productMapper;
 
     public ProactiveScheduler(ProactiveSignalScanner scanner,
+            ProactiveService proactiveService,
             ProactiveScanMapper scanMapper,
             ProactiveEventMapper eventMapper,
             ShopOrderMapper shopOrderMapper,
             ShopOrderItemMapper shopOrderItemMapper,
             ProductMapper productMapper) {
         this.scanner = scanner;
+        this.proactiveService = proactiveService;
         this.scanMapper = scanMapper;
         this.eventMapper = eventMapper;
         this.shopOrderMapper = shopOrderMapper;
@@ -51,9 +54,11 @@ public class ProactiveScheduler {
     public void runOnce() {
         Instant now = Instant.now();
         int created = scanner.scan(now);
+        int dispatched = proactiveService.dispatchPending(now);
         int canceled = cancelExpiredOrders(now);
         int expired = expireProposals(now);
-        log.info("主动提醒扫描完成：新增信号 {}，超时关单 {}，过期提议 {}", created, canceled, expired);
+        log.info("主动提醒扫描完成：新增信号 {}，派发 {}，超时关单 {}，过期提议 {}",
+                created, dispatched, canceled, expired);
     }
 
     /** 超时关单：PENDING_PAYMENT 超 30 分钟 → 取消并恢复库存（复用取消语义）。 */

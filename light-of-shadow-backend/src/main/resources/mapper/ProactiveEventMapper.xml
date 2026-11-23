@@ -9,6 +9,7 @@
     <result column="dedupe_key" property="dedupeKey"/>
     <result column="ref_id" property="refId"/>
     <result column="payload_json" property="payloadJson"/>
+    <result column="proposal_json" property="proposalJson"/>
     <result column="status" property="status"/>
     <result column="action_id" property="actionId"/>
     <result column="session_id" property="sessionId"/>
@@ -51,6 +52,29 @@
         resolved_at = #{resolvedAt}
     WHERE id = #{id}
   </update>
+
+  <update id="markSent">
+    UPDATE proactive_event
+    SET status = 'SENT',
+        proposal_json = #{proposalJson},
+        session_id = #{sessionId},
+        proposed_at = #{proposedAt}
+    WHERE id = #{id}
+  </update>
+
+  <select id="selectSentByUser" resultMap="ProactiveEventResult">
+    SELECT * FROM proactive_event
+    WHERE user_id = #{userId} AND status = 'SENT'
+    ORDER BY created_at DESC
+    LIMIT #{limit}
+  </select>
+
+  <select id="selectPending" resultMap="ProactiveEventResult">
+    SELECT * FROM proactive_event
+    WHERE status = 'PENDING'
+    ORDER BY created_at ASC
+    LIMIT #{limit}
+  </select>
 
   <select id="selectExpired" resultMap="ProactiveEventResult">
     SELECT * FROM proactive_event

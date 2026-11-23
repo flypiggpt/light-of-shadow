@@ -147,3 +147,5 @@ CREATE TABLE IF NOT EXISTS proactive_pref (
   updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (user_id, type)
 );
+
+ALTER TABLE proactive_event ADD COLUMN IF NOT EXISTS proposal_json TEXT;

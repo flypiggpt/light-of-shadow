@@ -50,6 +50,7 @@ public class GlobalExceptionHandler {
             case CODE_INVALID -> HttpStatus.BAD_REQUEST;
             case SESSION_NOT_FOUND -> HttpStatus.BAD_REQUEST;
             case SESSION_ENDED -> HttpStatus.BAD_REQUEST;
+            case PROPOSAL_NOT_FOUND -> HttpStatus.BAD_REQUEST;
             case INTERNAL_SERVER_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
     }

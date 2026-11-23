@@ -32,6 +32,19 @@ public interface ProactiveEventMapper {
             @Param("actionId") String actionId,
             @Param("resolvedAt") Instant resolvedAt);
 
+    /** 发送落库：提议文案/动作 + 会话 + 发送时刻。 */
+    int markSent(@Param("id") String id,
+            @Param("proposalJson") String proposalJson,
+            @Param("sessionId") String sessionId,
+            @Param("proposedAt") Instant proposedAt);
+
+    /** 用户的未读提议（SENT 且未处理）。 */
+    List<ProactiveEventEntity> selectSentByUser(@Param("userId") String userId,
+            @Param("limit") int limit);
+
+    /** 待派发的已放行事件（PENDING）。 */
+    List<ProactiveEventEntity> selectPending(@Param("limit") int limit);
+
     /** 过期未处理的 SENT 事件（24 小时确认时效）。 */
     List<ProactiveEventEntity> selectExpired(@Param("before") Instant before);
 

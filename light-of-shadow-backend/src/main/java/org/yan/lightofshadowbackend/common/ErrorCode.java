@@ -9,6 +9,7 @@ public enum ErrorCode {
     CODE_INVALID(4011, "验证码无效"),
     SESSION_NOT_FOUND(4002, "会话不存在"),
     SESSION_ENDED(4003, "会话已结束"),
+    PROPOSAL_NOT_FOUND(4005, "提议不存在或已处理"),
     INTERNAL_SERVER_ERROR(500, "服务器错误");
 
     private final int code;
